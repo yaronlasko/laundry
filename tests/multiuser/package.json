@@ -1,0 +1,13 @@
+{
+  "name": "laundry-multiuser-tests",
+  "private": true,
+  "description": "Runs the real app in several browsers at once against the Firebase emulators.",
+  "scripts": {
+    "test": "TZ=Asia/Jerusalem firebase emulators:exec --only auth,firestore --project demo-laundry --config firebase.json \"node run.js\""
+  },
+  "devDependencies": {
+    "firebase": "10.12.2",
+    "firebase-admin": "^12.7.0",
+    "firebase-tools": "^13.35.1"
+  }
+}

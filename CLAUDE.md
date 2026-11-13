@@ -10,7 +10,8 @@ Laundry Queue: a booking app for one shared washing machine in a building. Hebre
 | Path | What it is |
 |---|---|
 | `index.html` | The entire app: HTML, CSS and JS in one file. No build step, no npm. Firebase compat SDK 10.12.2 is loaded from gstatic. The Firebase web config is inline (that's public by design). |
-| `functions/` | Firebase Cloud Functions (Node 20, v2): `sendReminders` runs every 5 min and sends reminder emails via Gmail SMTP. Pure logic lives in `reminders.js`, tests in `test.js`. |
+| `functions/` | Firebase Cloud Functions (Node 20, v2): `sendReminders` (`index.js`) runs every 5 min and sends reminder emails via Gmail SMTP. The run itself is `processReminders` in `send.js` (takes db, clock and mail sender, so tests can drive it). Timing and email text are pure logic in `reminders.js`, unit tests in `test.js`. |
+| `tests/multiuser/` | End-to-end test: the real app in several browsers at once against the Firebase emulators, with `firestore.test.rules`. |
 | `firebase.json`, `.firebaserc` | Functions deploy config. Project id: `laundry-schedule-fa89a`. |
 | `README.md` | User-facing docs, including the one-time setup for reminders. |
 
@@ -31,7 +32,7 @@ The page is served statically, presumably via GitHub Pages at `https://yaronlask
 | `daily/{uid}_{day}` | `{uid, day, booking}`. Exists so the rules can enforce one turn per day. |
 | `swaps/{id}` | `{fromUid, toUid, fromBooking, toBooking, status: pending/accepted/declined, createdAt, answeredAt?}` |
 | `config/machine` | `{broken, updatedAt}`. When `broken` is true, booking is paused. |
-| `adminCheck/me` | Admin probe: the client tries to read it, and success means admin. Only reachable for Google-signed-in admins. |
+| `adminCheck/me` | Admin probe: the client tries to read it, and success means admin. The client only checks this for Google-signed-in users. |
 | `prefs/{uid}` | `{email: bool, lang, updatedAt}`. Reminder opt-in, private to the user. |
 | `reminders/{bookingId}_{uid}_{start or pickup}` | "Already sent" markers, written only by the function (Admin SDK). Cleared after 3 days. |
 
@@ -55,11 +56,13 @@ The real protection is the Firestore security rules in the Firebase console. The
 
 ## Testing
 - Functions: `cd functions && npm install && npm test`.
+- Multi-user: `cd tests/multiuser && npm install && npm test` (also needs `functions/node_modules`; set `SHOTS_DIR` to choose where screenshots go). It starts the Auth and Firestore emulators (project `demo-laundry`), serves `index.html`, swaps the gstatic Firebase SDK for the npm copy pointed at the emulators, and drives 3+ users in separate browser contexts: booking and live sync, a same-moment race for one slot, swaps, cancel, finishing early (via `page.clock`), admin (Google sign-in with a fake emulator token for `admin@example.com`), the reminder run, and Hebrew/RTL. It also sends rule-bypassing writes straight to Firestore to check they're refused. Run it after any change to booking, swap, admin or reminder code.
+- `tests/multiuser/firestore.test.rules` is a **stand-in** written from what the app writes, not the production rules. A pass shows the app and those rules agree; it says nothing about the real rules until the owner shares them.
 - The app has no test suite. To check UI changes: extract the inline `<script>` and run `node --check` on it, then render with Playwright. Intercept `gstatic.com/firebasejs` requests and serve a small fake `window.firebase` (auth that calls back with a user, and Firestore `collection/doc/where/orderBy/onSnapshot/set/batch` over in-memory data). Screenshot both languages at phone width (around 420px).
 - Real Firebase or email behaviour can't be tested from a cloud session. Say so rather than claiming it works.
 
 ## Deploying
-- App: merging to `main` publishes it.
+- App: merging to `main` updates the live site (assuming Pages serves `main`).
 - Functions: need the Blaze plan, plus secrets `SMTP_USER` and `SMTP_PASS` (a Gmail address and app password). Optional params are `APP_URL` and `TIME_ZONE`. Deploy with `npx firebase-tools deploy --only functions`. The owner runs this, for example from Google Cloud Shell; see README.
 
 ## Known issues

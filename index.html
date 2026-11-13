@@ -230,9 +230,9 @@ const T = {
 en:{
   title:"Laundry Queue", subtitle:"One machine · 45-minute turns · 1 turn per person per day", langBtn:"עברית",
   statusFree:"Machine is free", freeUntil:"Free until {t}", freeRest:"No more turns booked today",
-  washing:"Washing", pickup:"Time to take clothes out", turnOf:"{name}'s turn",
+  washing:"Washing", pickup:"Time to take clothes out", turnOf:"{name}'s turn", yourTurn:"Your turn",
   washEnds:"Wash ends {t}", pickupBy:"Clothes out by {t}", minWash:"min washing", minPick:"min to empty",
-  next:"Next: {name} at {t}", prev:"Last turn: {name}, ended {t}", prevHint:"Laundry still inside? Call:",
+  next:"Next: {name} at {t}", nextDay:"Next: {name} · {t}", prev:"Last turn: {name}, ended {t}", prevHint:"Laundry still inside? Call:",
   outOfOrder:"The machine is marked out of order. Booking is paused.",
   call:"Call", copy:"Copy", copied:"Copied",
   regTitle:"Sign up to book", regIntro:"Your phone number is shown to the other neighbours, so they can reach you if your laundry is still in the machine.",
@@ -279,9 +279,9 @@ en:{
 he:{
   title:"תור כביסה", subtitle:"מכונה אחת · תורים של 45 דקות · תור אחד לאדם ביום", langBtn:"English",
   statusFree:"המכונה פנויה", freeUntil:"פנויה עד {t}", freeRest:"אין עוד תורים היום",
-  washing:"בכביסה", pickup:"זמן להוציא את הבגדים", turnOf:"התור של {name}",
+  washing:"בכביסה", pickup:"זמן להוציא את הבגדים", turnOf:"התור של {name}", yourTurn:"התור שלך",
   washEnds:"הכביסה מסתיימת ב-{t}", pickupBy:"להוציא את הבגדים עד {t}", minWash:"דק׳ כביסה", minPick:"דק׳ לפינוי",
-  next:"הבא בתור: {name} ב-{t}", prev:"התור הקודם: {name}, הסתיים ב-{t}", prevHint:"נשארה כביסה במכונה? אפשר להתקשר:",
+  next:"הבא בתור: {name} ב-{t}", nextDay:"הבא בתור: {name} · {t}", prev:"התור הקודם: {name}, הסתיים ב-{t}", prevHint:"נשארה כביסה במכונה? אפשר להתקשר:",
   outOfOrder:"המכונה מסומנת כמקולקלת. הזמנת תורים מושהית.",
   call:"התקשרות", copy:"העתקה", copied:"הועתק",
   regTitle:"הרשמה להזמנת תורים", regIntro:"מספר הטלפון שלך יוצג לשכנים, כדי שיוכלו לפנות אליך אם הכביסה שלך נשארה במכונה.",
@@ -399,7 +399,7 @@ function renderStatus(){
     const left = washPhase ? Math.ceil((cur.startMs+WASH-now)/60000) : Math.ceil((cur.endMs-now)/60000);
     dial=`<div class="dial">${dialSVG(e)}<div class="center"><span class="big">${left}</span><span class="unit">${washPhase?t('minWash'):t('minPick')}</span></div></div>`;
     text=`<p class="head ${washPhase?'busy':'pick'}">${washPhase?t('washing'):t('pickup')}</p>
-      <p>${t('turnOf',{name:esc(memberName(cur.uid))})} · <span class="num" dir="ltr">${fmtTime(cur.startMs)}–${fmtTime(cur.endMs)}</span></p>
+      <p>${cur.uid===S.uid?t('yourTurn'):t('turnOf',{name:esc(memberName(cur.uid))})} · <span class="num" dir="ltr">${fmtTime(cur.startMs)}–${fmtTime(cur.endMs)}</span></p>
       <p class="muted small">${washPhase?t('washEnds',{t:fmtTime(cur.startMs+WASH)})+' · ':''}${t('pickupBy',{t:fmtTime(cur.endMs)})}</p>
       ${phoneBlock(cur.uid)?`<div class="person">${phoneBlock(cur.uid)}</div>`:''}`;
   } else {
@@ -411,7 +411,7 @@ function renderStatus(){
       if(typeof prev.doneAt!=='number' && phoneBlock(prev.uid)) text+=`<div class="person"><span class="small muted">${t('prevHint')}</span>${phoneBlock(prev.uid)}</div>`;
     }
   }
-  if(next) text+=`<p class="small muted">${t('next',{name:esc(memberName(next.uid)),t:(dayKey(next.startMs)===dayKey(now)?fmtTime(next.startMs):fmtWhen(next.startMs))})}</p>`;
+  if(next) text+=`<p class="small muted">${dayKey(next.startMs)===dayKey(now)?t('next',{name:esc(memberName(next.uid)),t:fmtTime(next.startMs)}):t('nextDay',{name:esc(memberName(next.uid)),t:esc(fmtWhen(next.startMs))})}</p>`;
   setHTML(el, dial+`<div class="status-text">${text}</div>`);
 }
 
