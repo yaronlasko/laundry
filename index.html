@@ -308,6 +308,7 @@ en:{
   calWash:"Laundry: start washing", calPick:"Laundry: take clothes out",
   calDetails:"Your laundry turn: {a}–{b}. Take your clothes out by {b} so the next person can start.",
   accGoogle:"Signed in as {email}.", google:"Sign in with Google", signOut:"Sign out",
+  errNotAdmin:"This Google account isn't the admin. Nothing was changed.", errPopup:"The sign-in window was blocked. Allow pop-ups for this site and try again.",
   menu:"Menu", adminSignIn:"Admin sign-in", adminSignInHint:"For the building admin only.", adminPanel:"Admin panel",
   remindLabel:"Email me reminders: about 10 minutes before my turn, and when it's time to take my clothes out.",
   remindOn:"Email reminders are on.", remindOff:"Email reminders are off.", remindTurnOn:"Turn on", remindTurnOff:"Turn off",
@@ -365,6 +366,7 @@ he:{
   calWash:"כביסה: להפעיל את המכונה", calPick:"כביסה: להוציא את הבגדים",
   calDetails:"תור הכביסה שלך: {a}–{b}. יש להוציא את הבגדים עד {b} כדי שהבא בתור יוכל להתחיל.",
   accGoogle:"מחובר/ת בתור {email}.", google:"כניסה עם גוגל", signOut:"התנתקות",
+  errNotAdmin:"חשבון הגוגל הזה אינו חשבון המנהל. לא בוצע שום שינוי.", errPopup:"חלון ההתחברות נחסם. יש לאפשר חלונות קופצים לאתר ולנסות שוב.",
   menu:"תפריט", adminSignIn:"כניסת מנהל", adminSignInHint:"למנהל/ת הבניין בלבד.", adminPanel:"ניהול הלוח",
   remindLabel:"לשלוח לי תזכורות במייל: כ-10 דקות לפני התור, וכשמגיע הזמן להוציא את הבגדים.",
   remindOn:"תזכורות במייל פעילות.", remindOff:"תזכורות במייל כבויות.", remindTurnOn:"הפעלה", remindTurnOff:"כיבוי",
@@ -380,7 +382,7 @@ const $ = id => document.getElementById(id);
 
 const S = { uid:null, isAnon:true, email:'', isAdmin:false, members:{}, bookings:[], swapsFrom:[], swapsTo:[], machine:{broken:false}, prefs:null, prefsLoaded:false, justBooked:null,
   loadedB:false, ready:false, unreachable:false, setup:false, authFail:false, day:null, swapTarget:null, confirm:null, editing:false, busy:false,
-  adminTab:'schedule', adminFilter:'', adminEdit:null, admForm:null, memberEdit:null, history:null, historyLoading:false };
+  menuError:'', adminTab:'schedule', adminFilter:'', adminEdit:null, admForm:null, memberEdit:null, history:null, historyLoading:false };
 let db=null, auth=null, unsubs=[];
 
 function locale(){ return L==='he'?'he-IL':'en-GB'; }
@@ -762,6 +764,7 @@ function renderMenu(){
     <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg></button></div>`;
   if(S.uid && S.isAnon){
     h+=`<div class="acts-wrap"><button type="button" data-act="google">${t('adminSignIn')}</button></div><p class="small muted">${t('adminSignInHint')}</p>`;
+    if(S.menuError) h+=`<p class="notice warn small" role="alert">${esc(S.menuError)}</p>`;
   } else if(S.uid){
     h+=`<p class="small">${t('accGoogle',{email:`<span dir="ltr">${esc(S.email)}</span>`})}${S.isAdmin?` <span class="pill">${t('adminBadge')}</span>`:''}</p>
       <div class="acts-wrap">${S.isAdmin?`<button type="button" class="primary" data-act="goto-admin">${t('adminPanel')}</button>`:''}<button type="button" data-act="signout">${t('signOut')}</button></div>`;
@@ -771,7 +774,7 @@ function renderMenu(){
 function setMenu(open){
   const m=$('menu'), sc=$('scrim'), b=$('menu-btn');
   m.hidden=!open; sc.hidden=!open; b.setAttribute('aria-expanded', String(open));
-  if(open){ renderMenu(); const f=m.querySelector('[data-act]:not([data-act=menu-close])')||m.querySelector('button'); if(f) f.focus(); }
+  if(open){ S.menuError=''; renderMenu(); const f=m.querySelector('[data-act]:not([data-act=menu-close])')||m.querySelector('button'); if(f) f.focus(); }
   else b.focus({preventScroll:true});
 }
 function applyLang(){
@@ -932,16 +935,41 @@ function openIcs(b){
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),10000);
 }
 
+// Admin sign-in. The Google account is checked in a separate, throw-away Firebase app first, so a
+// non-admin never touches this phone's session: they get an error and stay exactly as they were.
+// Only when the rules confirm the admin (adminCheck/me is readable) does the main app sign in.
 async function googleSignIn(){
-  const p=new firebase.auth.GoogleAuthProvider(); const u=auth.currentUser;
+  S.menuError=''; renderMenu();
+  const app2=firebase.initializeApp(window.FIREBASE_CONFIG, 'admin-check-'+Date.now());
+  const a2=app2.auth();
   try{
-    if(u && u.isAnonymous){ await u.linkWithPopup(p); await handleUser(auth.currentUser); }
-    else await auth.signInWithPopup(p);
-  }catch(e){
-    if(e && (e.code==='auth/credential-already-in-use'||e.code==='auth/email-already-in-use') && e.credential){ await auth.signInWithCredential(e.credential); }
-    else if(e && (e.code==='auth/popup-blocked'||e.code==='auth/operation-not-supported-in-this-environment')){ await auth.signInWithRedirect(p); }
-    else if(e && e.code!=='auth/popup-closed-by-user' && e.code!=='auth/cancelled-popup-request'){ console.warn(e); toast(t('errGeneric')); }
-  }
+    await a2.setPersistence(firebase.auth.Auth.Persistence.NONE);
+    let res;
+    try{ res=await a2.signInWithPopup(new firebase.auth.GoogleAuthProvider()); }
+    catch(e){
+      if(e && (e.code==='auth/popup-closed-by-user' || e.code==='auth/cancelled-popup-request')) return;
+      if(e && (e.code==='auth/popup-blocked' || e.code==='auth/operation-not-supported-in-this-environment')){ S.menuError=t('errPopup'); renderMenu(); return; }
+      throw e;
+    }
+    let isAdmin=false;
+    try{ await app2.firestore().doc('adminCheck/me').get(); isAdmin=true; }catch(e){ isAdmin=false; }
+    if(!isAdmin){
+      // Don't leave behind an account this attempt created.
+      if(res.additionalUserInfo && res.additionalUserInfo.isNewUser){ try{ await res.user.delete(); }catch(e){ console.warn(e); } }
+      S.menuError=t('errNotAdmin'); renderMenu(); toast(t('errNotAdmin'));
+      return;
+    }
+    const cred=res.credential, u=auth.currentUser;
+    if(u && u.isAnonymous){
+      try{ await u.linkWithCredential(cred); await handleUser(auth.currentUser); }
+      catch(e){
+        if(e && (e.code==='auth/credential-already-in-use' || e.code==='auth/email-already-in-use')) await auth.signInWithCredential(e.credential || cred);
+        else throw e;
+      }
+    } else await auth.signInWithCredential(cred);
+    setMenu(false);
+  }catch(e){ console.warn(e); S.menuError=t('errGeneric'); renderMenu(); }
+  finally{ try{ await a2.signOut(); }catch(e){} try{ await app2.delete(); }catch(e){} }
 }
 
 /* ---------- events ---------- */
@@ -998,7 +1026,7 @@ document.addEventListener('click', async ev=>{
       case 'adm-m-edit': S.memberEdit=btn.dataset.uid; renderAdmin(); break;
       case 'adm-m-close': S.memberEdit=null; renderAdmin(); break;
       case 'adm-m-save': btn.disabled=true; await adminSaveMember(btn.dataset.uid); renderAll(); break;
-      case 'google': setMenu(false); await googleSignIn(); break;
+      case 'google': btn.disabled=true; await googleSignIn(); break;
       case 'signout': setMenu(false); await auth.signOut(); break;
     }
   }catch(e){ console.warn(e); toast(errMsg(e)); btn.disabled=false; renderAll(); }
@@ -1049,7 +1077,6 @@ function init(){
   if(!window.firebase || !cfg || /^PASTE/.test(String(cfg.apiKey||''))){ S.setup=true; S.ready=true; renderAll(); return; }
   firebase.initializeApp(cfg);
   auth=firebase.auth(); db=firebase.firestore();
-  auth.getRedirectResult().catch(e=>{ if(e && e.credential && e.code==='auth/credential-already-in-use') auth.signInWithCredential(e.credential); });
   auth.onAuthStateChanged(u=>{ handleUser(u); });
 }
 init();

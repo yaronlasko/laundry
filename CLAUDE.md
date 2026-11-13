@@ -25,6 +25,8 @@ The page is served statically, presumably via GitHub Pages at `https://yaronlask
 
 ## Admin panel
 - **Google sign-in is only for the admin.** Regular users stay on anonymous auth. Sign-in lives in the ☰ side menu (`renderMenu`, `setMenu`): "Admin sign-in" while anonymous; after Google sign-in it shows the email, "Admin panel" (admin only) and Sign out. There is no account block on the page. The owner rejected a separate admin link (`?admin`), so keep everything on the one URL.
+- `googleSignIn` checks the Google account in a throw-away secondary Firebase app (persistence NONE): it signs in there, then tries to read `adminCheck/me`. A **non-admin** gets `errNotAdmin` in the menu, the account that attempt created is deleted (`isNewUser` only), and the main session stays untouched: same anonymous uid, same view, no Google link. Only the admin's credential is then used on the main app (`linkWithCredential` → `signInWithCredential` if already in use). There is no redirect fallback, because it would bypass this check; a blocked pop-up shows `errPopup`.
+- Tests can't load the real Google pop-up (it needs apis.google.com). `run.js` patches `signInWithPopup` to sign in with `window.__TEST_GOOGLE` (fake emulator token claims) instead.
 - Shown at the bottom for the admin, with a header shortcut (`#admin-link`). Tabs in `S.adminTab`: **schedule** (upcoming turns by day, filter `S.adminFilter`, editor `S.adminEdit` = the id of the future turn being edited, form state `S.admForm`), **members** (edit details, remove; `S.memberEdit`) and **history** (last 30 days, loaded on demand into `S.history`).
 - There is deliberately **no "Book for someone"** and **no "Add a neighbour without the app"**: the owner asked for both to be removed. The admin can only move or reassign existing turns.
 - `adminSaveBooking` moves or reassigns a turn in one batch, writing each doc at most once (a `Map` of path → data or `null` for delete). Moving a turn = delete the old turn + create the new one; reassigning at the same time = set the same booking id.
@@ -86,7 +88,7 @@ The real protection is the Firestore security rules, published by hand in the Fi
 ## Known issues
 - The setup notice text mentions `firebase-config.js`, which doesn't exist. The config is inline.
 - `members` is readable by everyone, including emails.
-- If an anonymous user signs in to a Google account that's already in use, their anonymous registration and bookings are left orphaned.
+- If the admin signs in with Google on a phone where their Google account already exists, the anonymous sign-up on that phone is left orphaned (only the admin can sign in with Google now).
 - Removing a member deletes their future bookings but leaves their swaps.
 - Any sign-up email address is accepted without verification, so reminders can be sent to an address that isn't the member's.
 - Email reminders (dormant): in roughly 1 of 4 multi-user runs, Dana's page shows reminders "off" while `prefs/{uid}.email` is true, so the first toggle turns them on. Cause not found. The test logs `KNOWN ISSUE` and reloads. Fix this before switching `EMAIL_REMINDERS` on.
