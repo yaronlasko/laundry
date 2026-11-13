@@ -61,6 +61,8 @@ async function openUser(label, opts = {}) {
   const ctx = opts.ctx || await browser.newContext({ locale: opts.locale || 'en-US', timezoneId: 'Asia/Jerusalem', viewport: { width: 420, height: 900 } });
   const page = await ctx.newPage();
   if (opts.fakeNow) await page.clock.setFixedTime(new Date(opts.fakeNow));
+  // Email reminders are switched off in the live app; most users here turn them on to test them.
+  if (opts.emailReminders !== false) await page.addInitScript(() => { window.LQ_EMAIL_REMINDERS = true; });
   page.on('pageerror', e => pageErrors.push(`${label}: ${e.message}`));
   await page.route(/gstatic\.com\/firebasejs\/[^/]+\/([\w-]+\.js)/, route => {
     const file = route.request().url().split('/').pop();
@@ -154,6 +156,18 @@ async function main() {
     assert(s.b && s.b.uid === A.uid, 'booking not stored for Dana');
     assert(s.ticks.every(t => t === String(a10)), 'ticks not written: ' + s.ticks);
     assert(s.daily && s.daily.booking === String(a10), 'daily doc missing');
+  });
+  await check('after booking, a calendar card appears; the phone-calendar file has both reminders', async () => {
+    await A.page.waitForSelector(`.cal-prompt [data-act=ics][data-id="${a10}"]`, { timeout: 5000 });
+    await shot(A, '0-calendar-prompt');
+    const [dl] = await Promise.all([A.page.waitForEvent('download'), A.page.click('.cal-prompt [data-act=ics]')]);
+    const ics = fs.readFileSync(await dl.path(), 'utf8');
+    assert((ics.match(/BEGIN:VEVENT/g) || []).length === 2, 'expected 2 events');
+    assert(ics.includes('TRIGGER:-PT10M') && ics.includes('TRIGGER:-PT0M'), 'alarms missing');
+    const gl = await A.page.$$eval('.cal-prompt a[href*="calendar.google.com"]', as => as.length);
+    assert(gl === 2, 'Google links: ' + gl);
+    await A.page.click('[data-act=cal-close]');
+    await eventually(async () => !(await A.page.$('.cal-prompt')), 'card did not close');
   });
   await check("Avi sees Dana's turn appear without reloading (name + phone)", async () => {
     await showDay(B, a10);
@@ -405,11 +419,19 @@ async function main() {
 
   console.log('\nHebrew view');
   await check('a Hebrew-language user sees everyone else live, right-to-left', async () => {
-    const H = await openUser('Hebrew', { locale: 'he-IL' });
+    const H = await openUser('Hebrew', { locale: 'he-IL', emailReminders: false });
     await showDay(H, a10);
     await eventually(async () => { const t = await H.page.textContent('#daylist'); return t.includes('Dana') && t.includes(L.name); }, 'bookings not shown');
     assert((await H.page.getAttribute('html', 'dir')) === 'rtl', 'not RTL');
     await shot(H, '5-hebrew-guest');
+  });
+  await check('with email reminders switched off (as live), the sign-up form has no email-reminder option', async () => {
+    const H = await openUser('Off', { emailReminders: false });
+    await H.page.waitForSelector('#reg-form');
+    assert(!(await H.page.$('#reg-remind')), 'reminder checkbox shown');
+    await register(H, 'Off', '050-444-4444', 'off@example.com');
+    assert(!(await H.page.$('[data-act=remind]')), 'reminder button shown');
+    assert(!(await getDoc('prefs/' + H.uid)), 'prefs written');
   });
 
   await check('no JavaScript errors in any browser', async () => { assert(pageErrors.length === 0, pageErrors.join(' | ')); });

@@ -140,6 +140,7 @@ label{font-weight:600;font-size:.9rem}
 .reg-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .reg-summary{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:space-between}
 .reg-card{display:flex;flex-direction:column;gap:10px}
+.cal-prompt{display:flex;flex-direction:column;gap:10px;background:var(--accent-soft);border-color:var(--accent)}
 .reg-card .reg-summary + .reg-summary{border-top:1px solid var(--line);padding-top:10px}
 .check{display:flex;gap:10px;align-items:flex-start;font-weight:400;font-size:.95rem;cursor:pointer}
 .check input{width:18px;height:18px;padding:0;margin:3px 0 0;flex:none;accent-color:var(--accent)}
@@ -201,6 +202,7 @@ label{font-weight:600;font-size:.9rem}
       <p id="book-preview" class="preview num"></p>
       <button id="book-btn" class="primary" type="submit" data-i18n="bookBtn"></button>
     </form>
+    <div id="cal-prompt" aria-live="polite"></div>
     <div id="daylist"></div>
   </section>
 
@@ -224,6 +226,9 @@ window.FIREBASE_CONFIG = {
 </script>
 <script>
 (function(){
+// Email reminders need the Cloud Function in functions/ (Firebase Blaze plan). Off: the option is hidden.
+// Tests turn it on with window.LQ_EMAIL_REMINDERS = true.
+const EMAIL_REMINDERS = window.LQ_EMAIL_REMINDERS === true;
 const SLOT = 45*60000, WASH = 40*60000, TICK = 15*60000, DAYS = 14, H = 3600000;
 
 const T = {
@@ -256,6 +261,7 @@ en:{
   errSwapDay:"This swap would give someone two turns on one day.", errSwapGone:"One of these turns changed, so the request is no longer valid.",
   errTime:"Choose a start time.", errName:"Enter your name.", errEmail:"Enter a valid email address.", errPhone:"Enter a valid phone number.",
   errSwapDup:"You already sent this request.", errDenied:"That change isn't allowed.",
+  calPromptTitle:"Booked {t}. Get a reminder on your phone", calPromptText:"Add the turn to your calendar so your phone reminds you.",
   booked:"Booked {t}", cancelled:"Turn cancelled", saved:"Details saved", sent:"Request sent", swapped:"Turns swapped", doneMsg:"Thanks, the machine is free",
   adminTitle:"Admin", adminBadge:"Admin", machineOk:"The machine is working.", machineBroken:"The machine is marked out of order.",
   markBroken:"Mark out of order", markOk:"Mark as working",
@@ -305,6 +311,7 @@ he:{
   errSwapDay:"ההחלפה הזו תיתן למישהו שני תורים באותו יום.", errSwapGone:"אחד התורים השתנה, ולכן הבקשה כבר לא בתוקף.",
   errTime:"יש לבחור שעת התחלה.", errName:"יש להזין שם.", errEmail:"יש להזין כתובת אימייל תקינה.", errPhone:"יש להזין מספר טלפון תקין.",
   errSwapDup:"כבר שלחת את הבקשה הזו.", errDenied:"השינוי הזה לא מותר.",
+  calPromptTitle:"התור נקבע ל-{t}. תזכורת בטלפון", calPromptText:"אפשר להוסיף את התור ליומן, והטלפון יזכיר לך.",
   booked:"התור נקבע ל-{t}", cancelled:"התור בוטל", saved:"הפרטים נשמרו", sent:"הבקשה נשלחה", swapped:"התורים הוחלפו", doneMsg:"תודה, המכונה פנויה",
   adminTitle:"ניהול", adminBadge:"מנהל", machineOk:"המכונה תקינה.", machineBroken:"המכונה מסומנת כמקולקלת.",
   markBroken:"סימון כמקולקלת", markOk:"סימון כתקינה",
@@ -332,7 +339,7 @@ function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;'
 const pad = n => String(n).padStart(2,'0');
 const $ = id => document.getElementById(id);
 
-const S = { uid:null, isAnon:true, email:'', isAdmin:false, members:{}, bookings:[], swapsFrom:[], swapsTo:[], machine:{broken:false}, prefs:null, prefsLoaded:false,
+const S = { uid:null, isAnon:true, email:'', isAdmin:false, members:{}, bookings:[], swapsFrom:[], swapsTo:[], machine:{broken:false}, prefs:null, prefsLoaded:false, justBooked:null,
   loadedB:false, ready:false, unreachable:false, setup:false, authFail:false, day:null, swapTarget:null, confirm:null, editing:false, busy:false };
 let db=null, auth=null, unsubs=[];
 
@@ -578,6 +585,22 @@ function renderDayList(){
   h+='</div>';
   setHTML(el,h);
 }
+function renderCalPrompt(){
+  const el=$('cal-prompt'), b=S.justBooked && S.bookings.find(x=>x.id===S.justBooked);
+  if(!b || b.uid!==S.uid || b.startMs<=Date.now()){ setHTML(el,''); return; }
+  const det=t('calDetails',{a:fmtTime(b.startMs),b:fmtTime(b.endMs)});
+  setHTML(el, `<div class="card cal-prompt">
+    <h3>${t('calPromptTitle',{t:esc(fmtWhen(b.startMs))})}</h3>
+    <p class="small">${t('calPromptText')}</p>
+    <div class="acts-wrap">
+      <button type="button" class="primary" data-act="ics" data-id="${esc(b.id)}">${t('apple')}</button>
+      <a class="btn" target="_blank" rel="noopener" href="${esc(gcalUrl(t('calWash'),b.startMs,b.startMs+WASH,det))}">${t('gWash')}</a>
+      <a class="btn" target="_blank" rel="noopener" href="${esc(gcalUrl(t('calPick'),b.startMs+WASH,b.endMs,det))}">${t('gPickup')}</a>
+      <button type="button" data-act="cal-close">${t('close')}</button>
+    </div>
+    <p class="muted small">${t('appleHint')}</p>
+  </div>`);
+}
 function renderBookForm(){
   const sel=$('start-time'), btn=$('book-btn'), pv=$('book-preview');
   const starts = S.ready ? freeStarts(S.day) : [];
@@ -628,7 +651,7 @@ function applyLang(){
   $('lang-btn').textContent=t('langBtn');
   document.title=t('title');
 }
-function renderAll(){ renderNotice(); renderStatus(); renderRegister(); renderMine(); renderDays(); renderTimeline(); renderDayList(); renderBookForm(); renderAdmin(); renderAccount(); }
+function renderAll(){ renderNotice(); renderStatus(); renderRegister(); renderMine(); renderDays(); renderTimeline(); renderDayList(); renderBookForm(); renderCalPrompt(); renderAdmin(); renderAccount(); }
 
 /* ---------- data ---------- */
 function docs(snap){ return snap.docs.map(d=>Object.assign({id:d.id},d.data())); }
@@ -642,12 +665,12 @@ function subscribe(){
   }, e=>{ console.warn('bookings',e); clearTimeout(timer); S.ready=true; S.unreachable=true; renderAll(); }));
   unsubs.push(db.collection('swaps').where('fromUid','==',S.uid).onSnapshot(s=>{ S.swapsFrom=docs(s); renderAll(); }, e=>console.warn('swaps',e)));
   unsubs.push(db.collection('swaps').where('toUid','==',S.uid).onSnapshot(s=>{ S.swapsTo=docs(s); renderAll(); }, e=>console.warn('swaps',e)));
-  unsubs.push(db.doc('prefs/'+S.uid).onSnapshot(d=>{ S.prefs=d.exists?d.data():{}; S.prefsLoaded=true; renderAll(); }, e=>{ console.warn('prefs',e); S.prefsLoaded=false; renderAll(); }));
+  if(EMAIL_REMINDERS) unsubs.push(db.doc('prefs/'+S.uid).onSnapshot(d=>{ S.prefs=d.exists?d.data():{}; S.prefsLoaded=true; renderAll(); }, e=>{ console.warn('prefs',e); S.prefsLoaded=false; renderAll(); }));
   unsubs.push(db.doc('config/machine').onSnapshot(d=>{ S.machine=d.exists?d.data():{broken:false}; renderAll(); }, e=>console.warn('machine',e)));
 }
 async function handleUser(u){
   if(!u){ try{ await auth.signInAnonymously(); }catch(e){ console.warn(e); S.authFail=true; S.ready=true; renderAll(); } return; }
-  S.uid=u.uid; S.isAnon=u.isAnonymous; S.email=u.email||''; S.isAdmin=false; S.editing=false; S.prefs=null; S.prefsLoaded=false;
+  S.uid=u.uid; S.isAnon=u.isAnonymous; S.email=u.email||''; S.isAdmin=false; S.editing=false; S.prefs=null; S.prefsLoaded=false; S.justBooked=null;
   if(!u.isAnonymous){ try{ await db.doc('adminCheck/me').get(); S.isAdmin=true; }catch(e){ S.isAdmin=false; } }
   subscribe(); renderAll();
 }
@@ -766,6 +789,7 @@ document.addEventListener('click', async ev=>{
       case 'cancel-yes': case 'admin-cancel-yes': S.confirm=null; btn.disabled=true; await cancelBooking(id); toast(t('cancelled')); break;
       case 'done': btn.disabled=true; await markDone(id); toast(t('doneMsg')); break;
       case 'copy': { const txt=btn.dataset.text; try{ await navigator.clipboard.writeText(txt); toast(t('copied')); }catch(e){ const p=btn.parentElement.querySelector('.phone'); if(p){ const r=document.createRange(); r.selectNodeContents(p); const s=getSelection(); s.removeAllRanges(); s.addRange(r);} } break; }
+      case 'cal-close': S.justBooked=null; renderCalPrompt(); break;
       case 'ics': { const b=S.bookings.find(x=>x.id===id); if(b) openIcs(b); break; }
       case 'swap-open': S.swapTarget=id; renderDayList(); break;
       case 'swap-close': S.swapTarget=null; renderDayList(); break;
@@ -811,14 +835,14 @@ document.addEventListener('submit', async ev=>{
     if(S.busy) return;
     S.busy=true; renderBookForm();
     const ms=Number($('start-time').value)||null;
-    try{ await book(ms); toast(t('booked',{t:fmtWhen(ms)})); }
+    try{ await book(ms); S.justBooked=String(ms); toast(t('booked',{t:fmtWhen(ms)})); }
     catch(e){ console.warn(e); toast(errMsg(e)); }
     finally{ S.busy=false; renderAll(); }
   }
 });
 $('start-time').addEventListener('change',()=>renderBookForm());
 
-setInterval(()=>{ renderStatus(); renderMine(); renderDays(); renderTimeline(); renderDayList(); renderBookForm(); }, 30000);
+setInterval(()=>{ renderStatus(); renderMine(); renderDays(); renderTimeline(); renderDayList(); renderBookForm(); renderCalPrompt(); }, 30000);
 
 function init(){
   applyLang(); renderAll();

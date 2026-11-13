@@ -10,12 +10,17 @@ Laundry Queue: a booking app for one shared washing machine in a building. Hebre
 | Path | What it is |
 |---|---|
 | `index.html` | The entire app: HTML, CSS and JS in one file. No build step, no npm. Firebase compat SDK 10.12.2 is loaded from gstatic. The Firebase web config is inline (that's public by design). |
-| `functions/` | Firebase Cloud Functions (Node 20, v2): `sendReminders` (`index.js`) runs every 5 min and sends reminder emails via Gmail SMTP. The run itself is `processReminders` in `send.js` (takes db, clock and mail sender, so tests can drive it). Timing and email text are pure logic in `reminders.js`, unit tests in `test.js`. |
+| `functions/` | **Not deployed** (the owner doesn't want to pay for Blaze). Firebase Cloud Functions (Node 20, v2): `sendReminders` (`index.js`) runs every 5 min and sends reminder emails via Gmail SMTP. The run itself is `processReminders` in `send.js` (takes db, clock and mail sender, so tests can drive it). Timing and email text are pure logic in `reminders.js`, unit tests in `test.js`. |
 | `tests/multiuser/` | End-to-end test: the real app in several browsers at once against the Firebase emulators. `firestore.test.rules` is the production security rules, with the admin email swapped for `admin@example.com`. |
 | `firebase.json`, `.firebaserc` | Functions deploy config. Project id: `laundry-schedule-fa89a`. |
 | `README.md` | User-facing docs, including the one-time setup for reminders. |
 
 The page is served statically, presumably via GitHub Pages at `https://yaronlasko.github.io/laundry/`. That's also the default `APP_URL` used in the emails.
+
+## Reminders
+- In use: calendar reminders. After a booking, `renderCalPrompt` shows a card (`S.justBooked`) with "Apple / other calendar" (`.ics` with two alarms) and two Google Calendar links. The same buttons are on each turn in "My turns".
+- Email reminders are built but **off**: `EMAIL_REMINDERS` in `index.html` is false, so the prefs listener and all reminder UI are skipped. The multi-user test sets `window.LQ_EMAIL_REMINDERS = true` to keep covering them. The owner chose not to pay for Blaze, so don't push them; free alternatives (GitHub Actions cron) were offered and declined.
+- The `.ics` on iOS opens via a `data:` URL. This can't be tested here, so ask the owner to confirm on their iPhone if it changes.
 
 ## Booking rules (constants at the top of the app script)
 - `SLOT` 45 min per turn = `WASH` 40 min + 5 min to take clothes out. Starts snap to `TICK` 15-minute marks. Bookings open `DAYS` = 14 days ahead.

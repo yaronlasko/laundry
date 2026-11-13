@@ -4,7 +4,16 @@ A booking queue for one shared washing machine: 45-minute turns, one turn per pe
 swaps between neighbours, and an admin panel. Hebrew and English. The whole app is `index.html`,
 using Firebase (sign-in and the Firestore database).
 
-## Email reminders
+## Reminders
+
+**Calendar reminders (in use, free):** right after booking, a card offers to add the turn to the phone's calendar.
+"Apple / other calendar" downloads a file with two alarms (10 minutes before the wash, and when it's time to take the
+clothes out); the Google buttons open Google Calendar. The same buttons stay on each turn under "My turns".
+
+## Email reminders (switched off)
+
+Not in use: they need the Firebase Blaze plan, which needs a credit card. In `index.html`, `EMAIL_REMINDERS` is false,
+so the option is hidden. To turn them on later, do the setup below and set it to `true`.
 
 Members can turn on email reminders (at sign-up, or with the on/off button under their details).
 They get two emails per turn:
