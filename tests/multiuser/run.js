@@ -1,7 +1,7 @@
 // Multi-user end-to-end test: the real index.html in several separate browsers
 // (each its own anonymous Firebase user), all talking to the Firebase emulators.
 // Run with: npm test   (starts the emulators, runs this file, stops them)
-// Uses firestore.test.rules, a stand-in for the production rules.
+// Uses firestore.test.rules: the production rules with a test admin email.
 const { chromium } = require('playwright');
 const http = require('http');
 const fs = require('fs');
@@ -96,14 +96,14 @@ async function selectStart(u, ms) {
 }
 async function book(u, ms) { await selectStart(u, ms); return toastAfter(u.page, () => u.page.click('#book-btn')); }
 // Writes straight to Firestore from the user's browser, skipping the app's own checks: only the rules decide.
-async function rawBook(u, startMs) {
+async function rawBook(u, startMs, dayOverride) {
   return u.page.evaluate(async ({ startMs, day }) => {
     const db = firebase.firestore(), uid = firebase.auth().currentUser.uid, id = String(startMs), b = db.batch();
     b.set(db.doc('bookings/' + id), { uid, startMs, endMs: startMs + 2700000, day, createdAt: Date.now() });
     for (const k of [0, 1, 2]) b.set(db.doc('ticks/' + (startMs + k * 900000)), { booking: id });
     b.set(db.doc('daily/' + uid + '_' + day), { uid, day, booking: id });
     try { await b.commit(); return 'ok'; } catch (e) { return e.code; }
-  }, { startMs, day: dayKey(startMs) });
+  }, { startMs, day: dayOverride || dayKey(startMs) });
 }
 async function raw(u, fnSrc, arg) {
   return u.page.evaluate(async ({ fnSrc, arg }) => {
@@ -112,6 +112,15 @@ async function raw(u, fnSrc, arg) {
   }, { fnSrc, arg });
 }
 async function shot(u, name) { fs.mkdirSync(SHOTS, { recursive: true }); await u.page.screenshot({ path: path.join(SHOTS, name + '.png'), fullPage: true }); }
+// Undo a booking a test managed to sneak in, so later steps start from a clean state.
+async function wipeBooking(ms) {
+  const b = await getDoc('bookings/' + ms); if (!b) return;
+  const batch = db.batch();
+  batch.delete(db.doc('bookings/' + ms));
+  for (const k of [0, 1, 2]) batch.delete(db.doc('ticks/' + (ms + k * TICK)));
+  batch.delete(db.doc(`daily/${b.uid}_${b.day}`));
+  await batch.commit();
+}
 async function bookingState(ms) {
   const id = String(ms), b = await getDoc('bookings/' + id);
   const ticks = await Promise.all([0, 1, 2].map(k => getDoc('ticks/' + (ms + k * TICK))));
@@ -187,10 +196,18 @@ async function main() {
     assert((await raw(B, `await db.doc('bookings/'+arg).delete()`, String(a10))) === 'permission-denied', 'booking delete allowed');
     assert((await raw(B, `await db.doc('daily/'+arg).delete()`, `${A.uid}_${dayKey(a10)}`)) === 'permission-denied', 'daily delete allowed');
   });
-  await check("Avi can't edit Dana's details, read her reminder setting, or her swaps", async () => {
-    assert((await raw(B, `await db.doc('members/'+arg).set({name:'x',email:'x@x.x',phone:'1',joinedAt:1})`, A.uid)) === 'permission-denied', 'member edit allowed');
+  await check('a second turn on the same day, labelled as a different date, is refused', async () => {
+    const ms = at(D1, 16), r = await rawBook(A, ms, '2099-01-01');
+    if (r === 'ok') { await wipeBooking(ms); throw new Error('accepted: Dana got a 2nd turn tomorrow by writing day "2099-01-01"'); }
+    assert(r === 'permission-denied', 'result: ' + r);
+  });
+  await check("Avi can't edit Dana's details or read her reminder setting", async () => {
+    assert((await raw(B, `await db.doc('members/'+arg).set({name:'x',email:'x@x.x',phone:'050-0000000',joinedAt:1})`, A.uid)) === 'permission-denied', 'member edit allowed');
     assert((await raw(B, `await db.doc('prefs/'+arg).get()`, A.uid)) === 'permission-denied', 'prefs read allowed');
-    assert((await raw(B, `await db.collection('swaps').where('fromUid','==',arg).get()`, A.uid)) === 'permission-denied', 'swaps read allowed');
+  });
+  await check("Avi can't read swap requests between other people", async () => {
+    const r = await raw(B, `await db.collection('swaps').where('fromUid','==',arg).get()`, A.uid);
+    assert(r === 'permission-denied', 'all swap requests are readable by anyone signed in');
   });
   await check("a normal user can't mark the machine broken or pass the admin check", async () => {
     assert((await raw(B, `await db.doc('config/machine').set({broken:true})`)) === 'permission-denied', 'machine write allowed');
@@ -252,6 +269,27 @@ async function main() {
     assert(!(await getDoc(`daily/${W.uid}_${dayKey(r12)}`)), 'daily doc left behind');
     await showDay(L, r12);
     await eventually(async () => (await startOptions(L)).includes(String(r12)), '12:00 not free for the other user');
+  });
+  await check("the person asked to swap can't take the offered turn without giving theirs", async () => {
+    const d = (await db.collection('swaps').where('toUid', '==', W.uid).where('status', '==', 'pending').get()).docs[0];
+    const arg = Object.assign({ id: d.id, aDay: dayKey(l15) }, d.data());
+    const steal = `const s=arg, b=db.batch();
+      b.update(db.doc('bookings/'+s.fromBooking),{uid:s.toUid,swap:s.id});
+      b.set(db.doc('daily/'+s.toUid+'_'+s.aDay),{uid:s.toUid,day:s.aDay,booking:s.fromBooking});
+      if (s.markAccepted) b.update(db.doc('swaps/'+s.id),{status:'accepted',answeredAt:Date.now()});
+      await b.commit();`;
+    for (const markAccepted of [false, true]) {
+      const r = await raw(W, steal, Object.assign({ markAccepted }, arg));
+      if (r === 'ok') {
+        const FV = admin.firestore.FieldValue, b = db.batch();
+        b.update(db.doc('bookings/' + l15), { uid: A.uid, swap: FV.delete() });
+        b.delete(db.doc(`daily/${W.uid}_${arg.aDay}`));
+        b.update(db.doc('swaps/' + d.id), { status: 'pending', answeredAt: FV.delete() });
+        await b.commit();
+        throw new Error(`accepted${markAccepted ? ' (marking the request accepted)' : ''}: the winner took Dana's 15:00 and kept their own turn`);
+      }
+      assert(r === 'permission-denied', 'result: ' + r);
+    }
   });
   await check('now the same cross-day swap is accepted, and the daily docs move', async () => {
     assert(/Turns swapped/.test(await toastAfter(W.page, () => W.page.click('[data-act=swap-accept]'))), 'swap failed');
