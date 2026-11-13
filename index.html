@@ -285,8 +285,6 @@ en:{
   adminTabSchedule:"Schedule", adminTabHistory:"History", admEditTurn:"Edit turn", admEditBtn:"Edit",
   admPerson:"Person", admDay:"Day", admShow:"Show", admFilterAll:"Everyone", admNoTurns:"No upcoming turns.",
   admEndNow:"End now", admEnded:"Turn ended, the machine is free", admSaved:"Turn updated: {name}, {t}",
-  admAddNeighbour:"Add a neighbour without the app", admManual:"Added by admin",
-  admManualHint:"For neighbours who don't use the app, so you can give turns to them. Email is optional.", emailOptional:"Email (optional)",
   admHistoryTitle:"Last 30 days: {n} turns", admHistoryEmpty:"No turns in the last 30 days.", admDoneAt:"out at {t}",
   admRefresh:"Refresh", admLoadingHistory:"Loading…",
   errAdminDaily:"This person already has a turn on that day.", errAdmGone:"This turn changed or was cancelled.", errAdmWho:"Choose a person.",
@@ -344,8 +342,6 @@ he:{
   adminTabSchedule:"לוח תורים", adminTabHistory:"היסטוריה", admEditTurn:"עריכת תור", admEditBtn:"עריכה",
   admPerson:"עבור", admDay:"יום", admShow:"הצגה", admFilterAll:"כולם", admNoTurns:"אין תורים קרובים.",
   admEndNow:"סיום עכשיו", admEnded:"התור הסתיים, המכונה פנויה", admSaved:"התור עודכן: {name}, {t}",
-  admAddNeighbour:"הוספת שכן/ה בלי האפליקציה", admManual:"נוסף/ה ע״י מנהל",
-  admManualHint:"לשכנים שלא משתמשים באפליקציה, כדי שאפשר יהיה להעביר אליהם תורים. אימייל לא חובה.", emailOptional:"אימייל (לא חובה)",
   admHistoryTitle:"30 הימים האחרונים: {n} תורים", admHistoryEmpty:"לא היו תורים ב-30 הימים האחרונים.", admDoneAt:"פונתה ב-{t}",
   admRefresh:"רענון", admLoadingHistory:"טוען…",
   errAdminDaily:"לאדם הזה כבר יש תור ביום הזה.", errAdmGone:"התור הזה השתנה או בוטל.", errAdmWho:"יש לבחור עבור מי.",
@@ -704,17 +700,15 @@ function admEditorHTML(ids){
     <div class="acts-wrap"><button type="button" class="primary" data-act="adm-save"${!starts.length||clash?' disabled':''}>${t('save')}</button><button type="button" data-act="adm-edit-close">${t('cancelEdit')}</button></div>
   </div>`;
 }
-// Members tab: details, edit, remove, and neighbours added by the admin.
+// Members tab: details, edit, remove.
 function admMembersHTML(ids){
   const now=Date.now();
-  let h=`<div class="acts-wrap"><button type="button" data-act="adm-m-new">${t('admAddNeighbour')}</button></div>`;
-  if(S.memberEdit==='new') h+=admMemberFormHTML(null);
-  if(!ids.length) h+=`<p class="muted">${t('noMembers')}</p>`;
+  let h=ids.length ? '' : `<p class="muted">${t('noMembers')}</p>`;
   h+='<div>';
   for(const id of ids){
     if(S.memberEdit===id){ h+=admMemberFormHTML(id); continue; }
     const m=S.members[id], n=S.bookings.filter(b=>b.uid===id && b.startMs>now).length, conf=S.confirm==='rm:'+id;
-    const pill = id===S.uid ? ` <span class="pill">${t('adminBadge')}</span>` : id.startsWith('manual_') ? ` <span class="pill ok">${t('admManual')}</span>` : '';
+    const pill = id===S.uid ? ` <span class="pill">${t('adminBadge')}</span>` : '';
     h+=`<div class="member"><div class="info"><strong>${esc(m.name)}${pill}</strong>
       <span class="small"><span class="phone">${esc(m.phone)}</span>${m.email?` · <span dir="ltr">${esc(m.email)}</span>`:''}</span><span class="small muted">${t('upcoming',{n})}</span></div>
       <div class="acts-wrap"><button type="button" class="mini" data-act="adm-m-edit" data-uid="${esc(id)}">${t('admEditBtn')}</button>${id===S.uid?'':conf?`<button type="button" class="mini danger solid" data-act="rm-yes" data-uid="${esc(id)}">${t('confirmRemove')}</button><button type="button" class="mini" data-act="keep">${t('keep')}</button>`:`<button type="button" class="mini danger" data-act="rm" data-uid="${esc(id)}">${t('remove')}</button>`}</div></div>`;
@@ -722,14 +716,14 @@ function admMembersHTML(ids){
   return h+`</div><p class="muted small">${t('removeHint')}</p>`;
 }
 function admMemberFormHTML(id){
-  const m=id?S.members[id]:{name:'',phone:'',email:''};
-  return `<div class="adm-editor" id="adm-editor"><h3>${id?t('edit'):t('admAddNeighbour')}</h3>${id?'':`<p class="small muted">${t('admManualHint')}</p>`}
+  const m=S.members[id];
+  return `<div class="adm-editor" id="adm-editor"><h3>${t('edit')}</h3>
     <div class="adm-grid">
       <div class="field"><label for="adm-m-name">${t('name')}</label><input id="adm-m-name" autocomplete="off" maxlength="60" value="${esc(m.name)}"></div>
       <div class="field"><label for="adm-m-phone">${t('phone')}</label><input id="adm-m-phone" type="tel" dir="ltr" autocomplete="off" maxlength="25" placeholder="050-123-4567" value="${esc(m.phone)}"></div>
-      <div class="field"><label for="adm-m-email">${t('emailOptional')}</label><input id="adm-m-email" type="email" dir="ltr" autocomplete="off" maxlength="120" value="${esc(m.email)}"></div>
+      <div class="field"><label for="adm-m-email">${t('email')}</label><input id="adm-m-email" type="email" dir="ltr" autocomplete="off" maxlength="120" value="${esc(m.email)}"></div>
     </div>
-    <div class="acts-wrap"><button type="button" class="primary" data-act="adm-m-save" data-uid="${esc(id||'')}">${t('save')}</button><button type="button" data-act="adm-m-close">${t('cancelEdit')}</button></div>
+    <div class="acts-wrap"><button type="button" class="primary" data-act="adm-m-save" data-uid="${esc(id)}">${t('save')}</button><button type="button" data-act="adm-m-close">${t('cancelEdit')}</button></div>
   </div>`;
 }
 // History tab: the last 30 days, loaded on demand.
@@ -865,12 +859,12 @@ async function adminSaveBooking(){
   S.adminEdit=null;
   toast(t('admSaved', {name:S.members[uid].name, t:fmtWhen(startMs)}));
 }
-async function adminSaveMember(uidIn){
-  const uid=uidIn || ('manual_'+Date.now().toString(36)+Math.random().toString(36).slice(2,8));
+async function adminSaveMember(uid){
+  if(!uid || !S.members[uid]) throw {code:'admgone'};
   const name=$('adm-m-name').value.trim(), phone=$('adm-m-phone').value.trim(), email=$('adm-m-email').value.trim();
   if(!name) throw {code:'name'};
   if(phone.replace(/\D/g,'').length<9 || phone.length>25) throw {code:'phone'};
-  if(email && !/^[^@ ]+@[^@ ]+[.][^@ ]+$/.test(email)) throw {code:'email'};
+  if(!/^[^@ ]+@[^@ ]+[.][^@ ]+$/.test(email)) throw {code:'email'};
   const prev=S.members[uid];
   try{ await db.doc('members/'+uid).set({name, email, phone, joinedAt:(prev && prev.joinedAt) || Date.now()}); }
   catch(e){ if(e && e.code==='permission-denied') throw {code:'adminrules'}; throw e; }
@@ -975,7 +969,6 @@ document.addEventListener('click', async ev=>{
       case 'adm-end': btn.disabled=true;
         try{ await markDone(id); }catch(e){ if(e && e.code==='permission-denied') throw {code:'adminrules'}; throw e; }
         toast(t('admEnded')); break;
-      case 'adm-m-new': S.memberEdit='new'; renderAdmin(); scrollToEditor(); break;
       case 'adm-m-edit': S.memberEdit=btn.dataset.uid; renderAdmin(); break;
       case 'adm-m-close': S.memberEdit=null; renderAdmin(); break;
       case 'adm-m-save': btn.disabled=true; await adminSaveMember(btn.dataset.uid); renderAll(); break;

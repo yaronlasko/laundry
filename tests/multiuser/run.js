@@ -453,21 +453,13 @@ async function main() {
     await Adm.page.waitForSelector(`#adm-time-${dayKey(ms)} option[value="${ms}"]`, { state: 'attached', timeout: 5000 });
     await Adm.page.selectOption(`#adm-time-${dayKey(ms)}`, String(ms));
   }
-  let rina;
-  await check('Members tab: admin adds a neighbour without the app (no email), then fixes their phone', async () => {
+  await check('Members tab: no "add a neighbour" option; admin fixes a phone number', async () => {
     await admTab('members');
-    await Adm.page.click('[data-act=adm-m-new]');
-    await Adm.page.fill('#adm-m-name', 'Rina'); await Adm.page.fill('#adm-m-phone', '050-555-0000');
-    assert(/saved/i.test(await toastAfter(Adm.page, () => Adm.page.click('[data-act=adm-m-save]'))), 'not saved');
-    const snap = await db.collection('members').where('name', '==', 'Rina').get();
-    assert(snap.size === 1 && snap.docs[0].id.startsWith('manual_') && snap.docs[0].data().email === '', 'member doc wrong');
-    rina = snap.docs[0].id;
-    await Adm.page.waitForSelector(`[data-act=adm-m-edit][data-uid="${rina}"]`);
-    assert((await Adm.page.textContent('#admin')).includes('Added by admin'), 'pill missing');
-    await Adm.page.click(`[data-act=adm-m-edit][data-uid="${rina}"]`);
+    assert(!(await Adm.page.$('[data-act=adm-m-new]')), '"Add a neighbour" still there');
+    await Adm.page.click(`[data-act=adm-m-edit][data-uid="${L.uid}"]`);
     await Adm.page.fill('#adm-m-phone', '050-555-1234');
-    await toastAfter(Adm.page, () => Adm.page.click('[data-act=adm-m-save]'));
-    assert((await getDoc('members/' + rina)).phone === '050-555-1234', 'phone not updated');
+    assert(/saved/i.test(await toastAfter(Adm.page, () => Adm.page.click('[data-act=adm-m-save]'))), 'not saved');
+    assert((await getDoc('members/' + L.uid)).phone === '050-555-1234', 'phone not updated');
     await shot(Adm, '6-admin-members');
   });
   await check("admin edits a registered member's name; they see it on their own page", async () => {
@@ -553,11 +545,11 @@ async function main() {
   await check('History tab: the last 30 days with a count per person', async () => {
     const past1 = at(-2, 9), past2 = at(-1, 18);
     await db.doc('bookings/' + past1).set({ uid: A.uid, startMs: past1, endMs: past1 + 45 * MIN, day: dayKey(past1), createdAt: past1 - 3600000, doneAt: past1 + 35 * MIN });
-    await db.doc('bookings/' + past2).set({ uid: rina, startMs: past2, endMs: past2 + 45 * MIN, day: dayKey(past2), createdAt: past2 - 3600000 });
+    await db.doc('bookings/' + past2).set({ uid: L.uid, startMs: past2, endMs: past2 + 45 * MIN, day: dayKey(past2), createdAt: past2 - 3600000 });
     await admTab('history');
     await eventually(async () => (await Adm.page.textContent('#admin')).includes('Last 30 days: 2 turns'), 'history not shown');
     const t = await Adm.page.textContent('#admin');
-    assert(t.includes('Rina') && t.includes('Dana K') && t.includes('out at 09:35'), 'rows missing: ' + t.slice(0, 300));
+    assert(t.includes(L.name) && t.includes('Dana K') && t.includes('out at 09:35'), 'rows missing: ' + t.slice(0, 300));
     await shot(Adm, '8-admin-history');
     await admTab('schedule');
   });
