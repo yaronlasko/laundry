@@ -139,6 +139,10 @@ label{font-weight:600;font-size:.9rem}
 /* register */
 .reg-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .reg-summary{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:space-between}
+.reg-card{display:flex;flex-direction:column;gap:10px}
+.reg-card .reg-summary + .reg-summary{border-top:1px solid var(--line);padding-top:10px}
+.check{display:flex;gap:10px;align-items:flex-start;font-weight:400;font-size:.95rem;cursor:pointer}
+.check input{width:18px;height:18px;padding:0;margin:3px 0 0;flex:none;accent-color:var(--accent)}
 
 /* account + admin */
 .account{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:space-between;font-size:.9rem;color:var(--muted);border-top:1px solid var(--line);padding-top:16px}
@@ -266,7 +270,11 @@ en:{
   calWash:"Laundry: start washing", calPick:"Laundry: take clothes out",
   calDetails:"Your laundry turn: {a}–{b}. Take your clothes out by {b} so the next person can start.",
   accAnon:"Your sign-up is saved on this phone. To use the same turns on another device, sign in with Google.",
-  accGoogle:"Signed in as {email}.", google:"Sign in with Google", signOut:"Sign out"
+  accGoogle:"Signed in as {email}.", google:"Sign in with Google", signOut:"Sign out",
+  remindLabel:"Email me reminders: about 10 minutes before my turn, and when it's time to take my clothes out.",
+  remindOn:"Email reminders are on.", remindOff:"Email reminders are off.", remindTurnOn:"Turn on", remindTurnOff:"Turn off",
+  remindOnMsg:"Email reminders on", remindOffMsg:"Email reminders off",
+  errRemind:"Your details were saved, but the reminder setting couldn't be saved."
 },
 he:{
   title:"תור כביסה", subtitle:"מכונה אחת · תורים של 45 דקות · תור אחד לאדם ביום", langBtn:"English",
@@ -311,7 +319,11 @@ he:{
   calWash:"כביסה: להפעיל את המכונה", calPick:"כביסה: להוציא את הבגדים",
   calDetails:"תור הכביסה שלך: {a}–{b}. יש להוציא את הבגדים עד {b} כדי שהבא בתור יוכל להתחיל.",
   accAnon:"ההרשמה שלך שמורה בטלפון הזה. כדי להשתמש באותם תורים במכשיר נוסף, אפשר להתחבר עם גוגל.",
-  accGoogle:"מחובר/ת בתור {email}.", google:"כניסה עם גוגל", signOut:"התנתקות"
+  accGoogle:"מחובר/ת בתור {email}.", google:"כניסה עם גוגל", signOut:"התנתקות",
+  remindLabel:"לשלוח לי תזכורות במייל: כ-10 דקות לפני התור, וכשמגיע הזמן להוציא את הבגדים.",
+  remindOn:"תזכורות במייל פעילות.", remindOff:"תזכורות במייל כבויות.", remindTurnOn:"הפעלה", remindTurnOff:"כיבוי",
+  remindOnMsg:"תזכורות במייל הופעלו", remindOffMsg:"תזכורות במייל כובו",
+  errRemind:"הפרטים נשמרו, אבל לא ניתן היה לשמור את הגדרת התזכורות."
 }};
 
 let L = (function(){ try{ const s=localStorage.getItem('lq-lang'); if(s==='he'||s==='en') return s; }catch(e){} return (navigator.language||'').toLowerCase().startsWith('en')?'en':'he'; })();
@@ -320,7 +332,7 @@ function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;'
 const pad = n => String(n).padStart(2,'0');
 const $ = id => document.getElementById(id);
 
-const S = { uid:null, isAnon:true, email:'', isAdmin:false, members:{}, bookings:[], swapsFrom:[], swapsTo:[], machine:{broken:false},
+const S = { uid:null, isAnon:true, email:'', isAdmin:false, members:{}, bookings:[], swapsFrom:[], swapsTo:[], machine:{broken:false}, prefs:null, prefsLoaded:false,
   loadedB:false, ready:false, unreachable:false, setup:false, authFail:false, day:null, swapTarget:null, confirm:null, editing:false, busy:false };
 let db=null, auth=null, unsubs=[];
 
@@ -338,6 +350,8 @@ function effEnd(b){ return (typeof b.doneAt==='number') ? Math.min(b.endMs, Math
 function dayKeys(){ const out=[]; const d=new Date(); for(let i=0;i<DAYS;i++){ const x=new Date(d.getFullYear(),d.getMonth(),d.getDate()+i); out.push(dayKey(x.getTime())); } return out; }
 function memberName(uid){ if(uid===S.uid) return t('you'); const m=S.members[uid]; return (m&&m.name)||t('neighbour'); }
 function registered(){ return !!(S.uid && S.members[S.uid]); }
+function remindOn(){ return !!(S.prefs && S.prefs.email===true); }
+function savePrefs(p){ return db.doc('prefs/'+S.uid).set(Object.assign({lang:L, updatedAt:Date.now()}, p), {merge:true}); }
 function myFuture(){ const now=Date.now(); return S.bookings.filter(b=>b.uid===S.uid && b.startMs>now).sort((a,b)=>a.startMs-b.startMs); }
 function allSwaps(){ const m=new Map(); for(const s of S.swapsFrom.concat(S.swapsTo)) m.set(s.id,s); return [...m.values()]; }
 function isFree(s){ const e=s+SLOT; return !S.bookings.some(b=>b.startMs<e && effEnd(b)>s); }
@@ -345,10 +359,10 @@ function freeStarts(k){ const ds=dayStart(k), de=dayEnd(k), now=Date.now(), out=
 
 function setHTML(el, html){
   if(el._last===html) return;
-  const saved={}; el.querySelectorAll('input,select').forEach(i=>{ if(i.id) saved[i.id]=i.value; });
+  const saved={}; el.querySelectorAll('input,select').forEach(i=>{ if(i.id) saved[i.id]= i.type==='checkbox' ? {checked:i.checked} : i.value; });
   const f=document.activeElement && el.contains(document.activeElement) ? document.activeElement.id : null;
   el.innerHTML=html; el._last=html;
-  for(const id in saved){ const n=el.querySelector('#'+CSS.escape(id)); if(n) n.value=saved[id]; }
+  for(const id in saved){ const n=el.querySelector('#'+CSS.escape(id)); if(!n) continue; if(typeof saved[id]==='object'){ if(n.type==='checkbox') n.checked=saved[id].checked; } else n.value=saved[id]; }
   if(f){ const n=el.querySelector('#'+CSS.escape(f)); if(n) n.focus(); }
 }
 let toastTimer;
@@ -417,7 +431,9 @@ function renderRegister(){
   if(!S.ready || !S.uid){ setHTML(el,''); return; }
   const me=S.members[S.uid];
   if(me && !S.editing){
-    setHTML(el, `<div class="card reg-summary"><p>${t('regAs',{name:`<strong>${esc(me.name)}</strong>`})} · <span class="phone">${esc(me.phone)}</span></p><button type="button" data-act="edit">${t('edit')}</button></div>`);
+    const on=remindOn();
+    const remindRow = S.prefsLoaded ? `<div class="reg-summary"><p class="small">${on?t('remindOn'):t('remindOff')} <span class="muted" dir="ltr">${esc(me.email)}</span></p><button type="button" class="mini${on?'':' primary'}" data-act="remind">${on?t('remindTurnOff'):t('remindTurnOn')}</button></div>` : '';
+    setHTML(el, `<div class="card reg-card"><div class="reg-summary"><p>${t('regAs',{name:`<strong>${esc(me.name)}</strong>`})} · <span class="phone">${esc(me.phone)}</span></p><button type="button" data-act="edit">${t('edit')}</button></div>${remindRow}</div>`);
     return;
   }
   const v = me || {name:'', email:S.email||'', phone:''};
@@ -429,6 +445,7 @@ function renderRegister(){
       <div class="field"><label for="reg-email">${t('email')}</label><input id="reg-email" type="email" dir="ltr" autocomplete="email" maxlength="120" value="${esc(v.email)}" required></div>
       <div class="field"><label for="reg-phone">${t('phone')}</label><input id="reg-phone" type="tel" dir="ltr" autocomplete="tel" maxlength="25" placeholder="050-123-4567" value="${esc(v.phone)}" required></div>
     </div>
+    ${S.prefsLoaded?`<label class="check" for="reg-remind"><input type="checkbox" id="reg-remind"${(me?remindOn():true)?' checked':''}><span>${t('remindLabel')}</span></label>`:''}
     <div class="acts-wrap"><button class="primary" type="submit">${me?t('save'):t('signup')}</button>${me?`<button type="button" data-act="edit-cancel">${t('cancelEdit')}</button>`:''}</div>
   </form>`);
 }
@@ -625,11 +642,12 @@ function subscribe(){
   }, e=>{ console.warn('bookings',e); clearTimeout(timer); S.ready=true; S.unreachable=true; renderAll(); }));
   unsubs.push(db.collection('swaps').where('fromUid','==',S.uid).onSnapshot(s=>{ S.swapsFrom=docs(s); renderAll(); }, e=>console.warn('swaps',e)));
   unsubs.push(db.collection('swaps').where('toUid','==',S.uid).onSnapshot(s=>{ S.swapsTo=docs(s); renderAll(); }, e=>console.warn('swaps',e)));
+  unsubs.push(db.doc('prefs/'+S.uid).onSnapshot(d=>{ S.prefs=d.exists?d.data():{}; S.prefsLoaded=true; renderAll(); }, e=>{ console.warn('prefs',e); S.prefsLoaded=false; renderAll(); }));
   unsubs.push(db.doc('config/machine').onSnapshot(d=>{ S.machine=d.exists?d.data():{broken:false}; renderAll(); }, e=>console.warn('machine',e)));
 }
 async function handleUser(u){
   if(!u){ try{ await auth.signInAnonymously(); }catch(e){ console.warn(e); S.authFail=true; S.ready=true; renderAll(); } return; }
-  S.uid=u.uid; S.isAnon=u.isAnonymous; S.email=u.email||''; S.isAdmin=false; S.editing=false;
+  S.uid=u.uid; S.isAnon=u.isAnonymous; S.email=u.email||''; S.isAdmin=false; S.editing=false; S.prefs=null; S.prefsLoaded=false;
   if(!u.isAnonymous){ try{ await db.doc('adminCheck/me').get(); S.isAdmin=true; }catch(e){ S.isAdmin=false; } }
   subscribe(); renderAll();
 }
@@ -734,10 +752,12 @@ document.addEventListener('click', async ev=>{
   const act=btn.dataset.act, id=btn.dataset.id;
   try{
     switch(act){
-      case 'lang': L = L==='he'?'en':'he'; try{ localStorage.setItem('lq-lang',L); }catch(e){} applyLang(); renderAll(); break;
+      case 'lang': L = L==='he'?'en':'he'; try{ localStorage.setItem('lq-lang',L); }catch(e){} applyLang(); renderAll();
+        if(S.prefsLoaded && S.prefs && S.prefs.email!=null) savePrefs({}).catch(e=>console.warn(e)); break;
       case 'day': S.day=btn.dataset.day; S.swapTarget=null; S.confirm=null; renderAll(); break;
       case 'pick': { const sel=$('start-time'); sel.value=btn.dataset.ms; renderBookForm(); $('book-form').scrollIntoView({block:'center',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'}); sel.focus({preventScroll:true}); break; }
       case 'edit': S.editing=true; renderRegister(); break;
+      case 'remind': { const on=!remindOn(); btn.disabled=true; await savePrefs({email:on}); toast(on?t('remindOnMsg'):t('remindOffMsg')); break; }
       case 'edit-cancel': S.editing=false; renderRegister(); break;
       case 'cancel': S.confirm='cancel:'+id; renderAll(); break;
       case 'admin-cancel': S.confirm='admin:'+id; renderAll(); break;
@@ -778,8 +798,13 @@ document.addEventListener('submit', async ev=>{
     if(!name) return toast(t('errName'));
     if(!/^[^@ ]+@[^@ ]+[.][^@ ]+$/.test(email)) return toast(t('errEmail'));
     if(phone.replace(/\D/g,'').length<9 || phone.length>25) return toast(t('errPhone'));
-    const prev=S.members[S.uid];
-    try{ await db.doc('members/'+S.uid).set({name, email, phone, joinedAt:(prev&&prev.joinedAt)||Date.now()}); S.editing=false; toast(t('saved')); renderAll(); }
+    const prev=S.members[S.uid], rm=$('reg-remind'), wantRemind = rm ? rm.checked : null;
+    try{
+      await db.doc('members/'+S.uid).set({name, email, phone, joinedAt:(prev&&prev.joinedAt)||Date.now()});
+      let msg=t('saved');
+      if(wantRemind!==null){ try{ await savePrefs({email:wantRemind}); }catch(e){ console.warn(e); msg=t('errRemind'); } }
+      S.editing=false; toast(msg); renderAll();
+    }
     catch(e){ console.warn(e); toast(errMsg(e)); }
   }
   if(f.id==='book-form'){
