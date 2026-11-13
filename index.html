@@ -282,11 +282,11 @@ en:{
   remove:"Remove", confirmRemove:"Yes, remove", removed:"Member removed",
   removeHint:"Removing deletes their details and future turns. They can sign up again from the link.",
   upcoming:"{n} upcoming", adminCancel:"Cancel",
-  adminTabSchedule:"Schedule", adminTabHistory:"History", admBookFor:"Book for someone", admEditTurn:"Edit turn", admEditBtn:"Edit",
+  adminTabSchedule:"Schedule", adminTabHistory:"History", admEditTurn:"Edit turn", admEditBtn:"Edit",
   admPerson:"Person", admDay:"Day", admShow:"Show", admFilterAll:"Everyone", admNoTurns:"No upcoming turns.",
-  admEndNow:"End now", admEnded:"Turn ended, the machine is free", admBooked:"Booked for {name}: {t}", admSaved:"Turn updated: {name}, {t}",
+  admEndNow:"End now", admEnded:"Turn ended, the machine is free", admSaved:"Turn updated: {name}, {t}",
   admAddNeighbour:"Add a neighbour without the app", admManual:"Added by admin",
-  admManualHint:"For neighbours who don't use the app, so you can book turns for them. Email is optional.", emailOptional:"Email (optional)",
+  admManualHint:"For neighbours who don't use the app, so you can give turns to them. Email is optional.", emailOptional:"Email (optional)",
   admHistoryTitle:"Last 30 days: {n} turns", admHistoryEmpty:"No turns in the last 30 days.", admDoneAt:"out at {t}",
   admRefresh:"Refresh", admLoadingHistory:"Loading…",
   errAdminDaily:"This person already has a turn on that day.", errAdmGone:"This turn changed or was cancelled.", errAdmWho:"Choose a person.",
@@ -341,11 +341,11 @@ he:{
   remove:"הסרה", confirmRemove:"כן, להסיר", removed:"הרשום הוסר",
   removeHint:"הסרה מוחקת את הפרטים ואת התורים העתידיים. אפשר להירשם מחדש דרך הקישור.",
   upcoming:"{n} תורים קרובים", adminCancel:"ביטול",
-  adminTabSchedule:"לוח תורים", adminTabHistory:"היסטוריה", admBookFor:"הזמנת תור עבור מישהו", admEditTurn:"עריכת תור", admEditBtn:"עריכה",
+  adminTabSchedule:"לוח תורים", adminTabHistory:"היסטוריה", admEditTurn:"עריכת תור", admEditBtn:"עריכה",
   admPerson:"עבור", admDay:"יום", admShow:"הצגה", admFilterAll:"כולם", admNoTurns:"אין תורים קרובים.",
-  admEndNow:"סיום עכשיו", admEnded:"התור הסתיים, המכונה פנויה", admBooked:"נקבע תור עבור {name}: {t}", admSaved:"התור עודכן: {name}, {t}",
+  admEndNow:"סיום עכשיו", admEnded:"התור הסתיים, המכונה פנויה", admSaved:"התור עודכן: {name}, {t}",
   admAddNeighbour:"הוספת שכן/ה בלי האפליקציה", admManual:"נוסף/ה ע״י מנהל",
-  admManualHint:"לשכנים שלא משתמשים באפליקציה, כדי שאפשר יהיה להזמין עבורם תורים. אימייל לא חובה.", emailOptional:"אימייל (לא חובה)",
+  admManualHint:"לשכנים שלא משתמשים באפליקציה, כדי שאפשר יהיה להעביר אליהם תורים. אימייל לא חובה.", emailOptional:"אימייל (לא חובה)",
   admHistoryTitle:"30 הימים האחרונים: {n} תורים", admHistoryEmpty:"לא היו תורים ב-30 הימים האחרונים.", admDoneAt:"פונתה ב-{t}",
   admRefresh:"רענון", admLoadingHistory:"טוען…",
   errAdminDaily:"לאדם הזה כבר יש תור ביום הזה.", errAdmGone:"התור הזה השתנה או בוטל.", errAdmWho:"יש לבחור עבור מי.",
@@ -665,7 +665,7 @@ function renderAdmin(){
 // Schedule tab: every upcoming turn, grouped by day.
 function admScheduleHTML(ids){
   const now=Date.now();
-  let h=`<div class="adm-bar"><button type="button" class="primary" data-act="adm-new"${ids.length?'':' disabled'}>${t('admBookFor')}</button>
+  let h=`<div class="adm-bar">
     <div class="adm-filter"><label for="adm-filter" class="small">${t('admShow')}</label><select id="adm-filter"><option value="">${t('admFilterAll')}</option>${ids.map(id=>`<option value="${esc(id)}"${S.adminFilter===id?' selected':''}>${esc(S.members[id].name)}</option>`).join('')}</select></div></div>`;
   if(S.adminEdit) h+=admEditorHTML(ids);
   const list=S.bookings.filter(b=>effEnd(b)>now && (!S.adminFilter || b.uid===S.adminFilter)).sort((a,b)=>a.startMs-b.startMs);
@@ -685,15 +685,15 @@ function admScheduleHTML(ids){
   }
   return h+'</div>';
 }
-// Book for someone, or edit a turn: person, day, start time.
+// Edit a turn: move it (day, start time) or give it to someone else.
 function admEditorHTML(ids){
-  const f=S.admForm, old=S.adminEdit==='new'?null:S.bookings.find(b=>b.id===S.adminEdit);
-  if(!f || (S.adminEdit!=='new' && !old)) return '';
-  const starts=freeStarts(f.day, old?old.id:undefined);
+  const f=S.admForm, old=S.bookings.find(b=>b.id===S.adminEdit);
+  if(!f || !old) return '';
+  const starts=freeStarts(f.day, old.id);
   const start=starts.map(String).includes(String(f.start)) ? String(f.start) : (starts.length?String(starts[0]):'');
-  const clash=!!f.uid && S.bookings.some(b=>b.uid===f.uid && dayKey(b.startMs)===f.day && (!old || b.id!==old.id));
+  const clash=!!f.uid && S.bookings.some(b=>b.uid===f.uid && dayKey(b.startMs)===f.day && b.id!==old.id);
   const tid='adm-time-'+f.day; // the id changes with the day, so a stale time isn't carried over
-  return `<div class="adm-editor" id="adm-editor"><h3>${old?t('admEditTurn'):t('admBookFor')}</h3>
+  return `<div class="adm-editor" id="adm-editor"><h3>${t('admEditTurn')}</h3>
     <div class="adm-grid">
       <div class="field"><label for="adm-who">${t('admPerson')}</label><select id="adm-who">${ids.map(id=>`<option value="${esc(id)}"${f.uid===id?' selected':''}>${esc(S.members[id].name)}</option>`).join('')}</select></div>
       <div class="field"><label for="adm-day">${t('admDay')}</label><select id="adm-day">${dayKeys().map(k=>`<option value="${k}"${f.day===k?' selected':''}>${esc(dayLabel(k))}</option>`).join('')}</select></div>
@@ -841,20 +841,20 @@ async function acceptSwap(sw){
   try{ await batch.commit(); }
   catch(e){ if(e && e.code==='permission-denied') throw {code:'swapday'}; throw e; }
 }
-// Admin: book for someone, or move / reassign a turn, in one batch.
+// Admin: move or reassign a turn, in one batch.
 // Each document is written at most once: a tick kept by the moved turn is overwritten, not deleted and re-created.
 async function adminSaveBooking(){
-  const old=S.adminEdit==='new' ? null : S.bookings.find(b=>b.id===S.adminEdit);
-  if(S.adminEdit!=='new' && !old) throw {code:'admgone'};
+  const old=S.bookings.find(b=>b.id===S.adminEdit);
+  if(!old || old.startMs<=Date.now()) throw {code:'admgone'};
   const uid=$('adm-who') && $('adm-who').value, sel=document.querySelector('[data-adm-time]'), startMs=Number(sel && sel.value)||0;
   if(!uid || !S.members[uid]) throw {code:'admwho'};
   if(!startMs) throw {code:'time'};
   const day=dayKey(startMs), id=String(startMs);
-  if(!isFree(startMs, old?old.id:undefined)) throw {code:'taken'};
-  if(S.bookings.some(b=>b.uid===uid && dayKey(b.startMs)===day && (!old || b.id!==old.id))) throw {code:'admdaily'};
+  if(!isFree(startMs, old.id)) throw {code:'taken'};
+  if(S.bookings.some(b=>b.uid===uid && dayKey(b.startMs)===day && b.id!==old.id)) throw {code:'admdaily'};
   const w=new Map();
-  if(old){ w.set('bookings/'+old.id,null); for(const tk of tickIds(old)) w.set('ticks/'+tk,null); w.set('daily/'+old.uid+'_'+old.day,null); }
-  w.set('bookings/'+id, {uid, startMs, endMs:startMs+SLOT, day, createdAt:(old && old.id===id && old.createdAt) || Date.now()});
+  w.set('bookings/'+old.id,null); for(const tk of tickIds(old)) w.set('ticks/'+tk,null); w.set('daily/'+old.uid+'_'+old.day,null);
+  w.set('bookings/'+id, {uid, startMs, endMs:startMs+SLOT, day, createdAt:(old.id===id && old.createdAt) || Date.now()});
   for(const tk of tickIds({startMs})) w.set('ticks/'+tk, {booking:id});
   w.set('daily/'+uid+'_'+day, {uid, day, booking:id});
   const batch=db.batch();
@@ -862,7 +862,7 @@ async function adminSaveBooking(){
   try{ await batch.commit(); }
   catch(e){ if(e && e.code==='permission-denied') throw {code:'adminrules'}; throw e; }
   S.adminEdit=null;
-  toast(t(old?'admSaved':'admBooked', {name:S.members[uid].name, t:fmtWhen(startMs)}));
+  toast(t('admSaved', {name:S.members[uid].name, t:fmtWhen(startMs)}));
 }
 async function adminSaveMember(uidIn){
   const uid=uidIn || ('manual_'+Date.now().toString(36)+Math.random().toString(36).slice(2,8));
@@ -968,7 +968,6 @@ document.addEventListener('click', async ev=>{
       case 'adm-tab': S.adminTab=btn.dataset.tab; S.adminEdit=null; S.memberEdit=null; S.confirm=null; renderAdmin();
         if(S.adminTab==='history' && !S.history && !S.historyLoading) await loadHistory(); break;
       case 'adm-hist-refresh': await loadHistory(); break;
-      case 'adm-new': { const ids=memberIds(); S.adminEdit='new'; S.admForm={uid:S.adminFilter||ids[0]||'', day:S.day||dayKeys()[0], start:null}; renderAdmin(); scrollToEditor(); break; }
       case 'adm-edit': { const b=S.bookings.find(x=>x.id===id); if(!b) break; S.adminEdit=id; S.admForm={uid:b.uid, day:dayKey(b.startMs), start:b.startMs}; renderAdmin(); scrollToEditor(); break; }
       case 'adm-edit-close': S.adminEdit=null; renderAdmin(); break;
       case 'adm-save': btn.disabled=true; await adminSaveBooking(); renderAll(); break;
