@@ -22,6 +22,13 @@ The page is served statically, presumably via GitHub Pages at `https://yaronlask
 - Email reminders are built but **off**: `EMAIL_REMINDERS` in `index.html` is false, so the prefs listener and all reminder UI are skipped. The multi-user test sets `window.LQ_EMAIL_REMINDERS = true` to keep covering them. The owner chose not to pay for Blaze, so don't push them; free alternatives (GitHub Actions cron) were offered and declined.
 - The `.ics` on iOS opens via a `data:` URL. This can't be tested here, so ask the owner to confirm on their iPhone if it changes.
 
+## Admin panel
+- Shown at the bottom for the admin, with a header shortcut (`#admin-link`). Tabs in `S.adminTab`: **schedule** (upcoming turns by day, filter `S.adminFilter`, editor `S.adminEdit` = `'new'` or a booking id, form state `S.admForm`), **members** (edit, add a `manual_` neighbour, remove; `S.memberEdit`) and **history** (last 30 days, loaded on demand into `S.history`).
+- `adminSaveBooking` books for someone or moves/reassigns a turn in one batch, writing each doc at most once (a `Map` of path → data or `null` for delete). Moving a turn = delete the old turn + create the new one; reassigning at the same time = set the same booking id.
+- The editor's time `<select>` id includes the day (`adm-time-<day>`), so `setHTML` doesn't carry a stale time across a day change.
+- When a write is refused, admin actions show `errAdminRules` ("publish the latest security rules").
+- Not built yet: blocking time slots (quiet hours or maintenance). The owner was told it can be added.
+
 ## Booking rules (constants at the top of the app script)
 - `SLOT` 45 min per turn = `WASH` 40 min + 5 min to take clothes out. Starts snap to `TICK` 15-minute marks. Bookings open `DAYS` = 14 days ahead.
 - One turn per person per day. A start up to 10 minutes in the past is still bookable.
@@ -46,7 +53,7 @@ Booking, cancelling, finishing ("done") and accepting swaps each write the booki
 ## Security rules
 The real protection is the Firestore security rules, published by hand in the Firebase console. They block double-booking and a second turn per day, decide who is admin, and control who can edit whose data. The app's own checks only shape the UI and anyone can bypass them.
 - `tests/multiuser/firestore.test.rules` mirrors the production rules. The only difference is the admin email: production uses the owner's Gmail. Don't commit the owner's email to this repo.
-- Admin = Google sign-in with that email and `email_verified`. Booking docs must carry a `day` that is the Israel date of `startMs` (UTC+2 or +3). Accepting a swap must flip both bookings and mark the swap accepted in one batch.
+- Admin = Google sign-in with that email and `email_verified`. The admin may: book for any member (`claimsSlot` + `isAdmin`, also while the machine is marked broken), give a future turn to someone else (`isAdminEdit`), move a tick to a moved turn once the old turn is gone (`ticks` update), end anyone's live turn (`isDone`), and add or edit any member. Neighbours added by the admin have ids starting `manual_` and may have an empty email. The admin is still bound by one turn per person per day and no overlaps. Booking docs must carry a `day` that is the Israel date of `startMs` (UTC+2 or +3). Accepting a swap must flip both bookings and mark the swap accepted in one batch.
 - The repo copy may drift from what's published. If it matters, ask the owner to paste the current rules from Firebase console → Firestore Database → Rules.
 - To change rules: edit the test copy, run the multi-user test, then give the owner the full text with their email in place to paste and Publish. Make the UI degrade gracefully until it's published. Example: the reminder UI stays hidden while reading `prefs` is denied.
 - Prefer new collections over new fields on existing docs, because the rules whitelist fields with `keys().hasOnly`.
@@ -64,7 +71,8 @@ The real protection is the Firestore security rules, published by hand in the Fi
 ## Testing
 - Functions: `cd functions && npm install && npm test`.
 - Multi-user: `cd tests/multiuser && npm install && npm test` (also needs `functions/node_modules`; set `SHOTS_DIR` to choose where screenshots go). It starts the Auth and Firestore emulators (project `demo-laundry`), serves `index.html`, swaps the gstatic Firebase SDK for the npm copy pointed at the emulators, and drives 3+ users in separate browser contexts: booking and live sync, a same-moment race for one slot, swaps, cancel, finishing early (via `page.clock`), admin (Google sign-in with a fake emulator token for `admin@example.com`), the reminder run, and Hebrew/RTL. It also sends rule-bypassing writes straight to Firestore to check they're refused. Run it after any change to booking, swap, admin or reminder code.
-- Run the multi-user test after any rules change. It covers the loopholes found so far: fake `day` labels, one-sided swaps, and reading other people's swaps.
+- Run the multi-user test after any rules change. It covers the loopholes found so far (fake `day` labels, one-sided swaps, reading other people's swaps) and the admin panel's writes and limits.
+- `page.clock` applies to a whole browser context. For a clock-shifted copy of a user, use `openUser(label, { cloneOf: ctx, fakeNow })`, which clones the sign-in into a new context. Never put a fake clock on a context other checks still use.
 - The app has no test suite. To check UI changes: extract the inline `<script>` and run `node --check` on it, then render with Playwright. Intercept `gstatic.com/firebasejs` requests and serve a small fake `window.firebase` (auth that calls back with a user, and Firestore `collection/doc/where/orderBy/onSnapshot/set/batch` over in-memory data). Screenshot both languages at phone width (around 420px).
 - Real Firebase or email behaviour can't be tested from a cloud session. Say so rather than claiming it works.
 

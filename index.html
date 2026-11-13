@@ -158,7 +158,17 @@ label{font-weight:600;font-size:.9rem}
 #toast.show{opacity:1}
 @media (prefers-reduced-motion: reduce){#toast{transition:none}}
 
+.tabs{display:flex;flex-wrap:wrap;gap:6px}
+.tabs button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.adm-editor{display:flex;flex-direction:column;gap:10px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r);padding:12px}
+.adm-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.adm-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.adm-filter{display:flex;align-items:center;gap:8px}
+.warn-text{color:var(--warn)}
+.head-acts{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+
 @media (max-width:560px){
+  .adm-grid{grid-template-columns:1fr}
   .status{grid-template-columns:1fr;justify-items:center;text-align:center}
   .status-text{align-items:center}
   .reg-grid{grid-template-columns:1fr}
@@ -175,7 +185,10 @@ label{font-weight:600;font-size:.9rem}
       <h1 data-i18n="title">תור כביסה</h1>
       <p class="sub" data-i18n="subtitle">מכונה אחת · תורים של 45 דקות · תור אחד לאדם ביום</p>
     </div>
-    <button id="lang-btn" class="lang" data-act="lang" type="button">English</button>
+    <div class="head-acts">
+      <button id="admin-link" class="lang" data-act="goto-admin" type="button" data-i18n="adminTitle" hidden>ניהול</button>
+      <button id="lang-btn" class="lang" data-act="lang" type="button">English</button>
+    </div>
   </header>
 
   <div id="notice"></div>
@@ -269,6 +282,15 @@ en:{
   remove:"Remove", confirmRemove:"Yes, remove", removed:"Member removed",
   removeHint:"Removing deletes their details and future turns. They can sign up again from the link.",
   upcoming:"{n} upcoming", adminCancel:"Cancel",
+  adminTabSchedule:"Schedule", adminTabHistory:"History", admBookFor:"Book for someone", admEditTurn:"Edit turn", admEditBtn:"Edit",
+  admPerson:"Person", admDay:"Day", admShow:"Show", admFilterAll:"Everyone", admNoTurns:"No upcoming turns.",
+  admEndNow:"End now", admEnded:"Turn ended, the machine is free", admBooked:"Booked for {name}: {t}", admSaved:"Turn updated: {name}, {t}",
+  admAddNeighbour:"Add a neighbour without the app", admManual:"Added by admin",
+  admManualHint:"For neighbours who don't use the app, so you can book turns for them. Email is optional.", emailOptional:"Email (optional)",
+  admHistoryTitle:"Last 30 days: {n} turns", admHistoryEmpty:"No turns in the last 30 days.", admDoneAt:"out at {t}",
+  admRefresh:"Refresh", admLoadingHistory:"Loading…",
+  errAdminDaily:"This person already has a turn on that day.", errAdmGone:"This turn changed or was cancelled.", errAdmWho:"Choose a person.",
+  errAdminRules:"Not allowed. Make sure the latest security rules are published in Firebase.",
   loading:"Loading the schedule…", unreachable:"Can't reach the schedule right now. It will update when the connection is back.",
   setup:"Setup isn't finished: paste your Firebase settings into firebase-config.js.",
   authFail:"Couldn't start a session. In Firebase, turn on Anonymous sign-in (Authentication → Sign-in method).",
@@ -319,6 +341,15 @@ he:{
   remove:"הסרה", confirmRemove:"כן, להסיר", removed:"הרשום הוסר",
   removeHint:"הסרה מוחקת את הפרטים ואת התורים העתידיים. אפשר להירשם מחדש דרך הקישור.",
   upcoming:"{n} תורים קרובים", adminCancel:"ביטול",
+  adminTabSchedule:"לוח תורים", adminTabHistory:"היסטוריה", admBookFor:"הזמנת תור עבור מישהו", admEditTurn:"עריכת תור", admEditBtn:"עריכה",
+  admPerson:"עבור", admDay:"יום", admShow:"הצגה", admFilterAll:"כולם", admNoTurns:"אין תורים קרובים.",
+  admEndNow:"סיום עכשיו", admEnded:"התור הסתיים, המכונה פנויה", admBooked:"נקבע תור עבור {name}: {t}", admSaved:"התור עודכן: {name}, {t}",
+  admAddNeighbour:"הוספת שכן/ה בלי האפליקציה", admManual:"נוסף/ה ע״י מנהל",
+  admManualHint:"לשכנים שלא משתמשים באפליקציה, כדי שאפשר יהיה להזמין עבורם תורים. אימייל לא חובה.", emailOptional:"אימייל (לא חובה)",
+  admHistoryTitle:"30 הימים האחרונים: {n} תורים", admHistoryEmpty:"לא היו תורים ב-30 הימים האחרונים.", admDoneAt:"פונתה ב-{t}",
+  admRefresh:"רענון", admLoadingHistory:"טוען…",
+  errAdminDaily:"לאדם הזה כבר יש תור ביום הזה.", errAdmGone:"התור הזה השתנה או בוטל.", errAdmWho:"יש לבחור עבור מי.",
+  errAdminRules:"הפעולה לא מותרת. יש לוודא שכללי האבטחה העדכניים פורסמו ב-Firebase.",
   loading:"טוען את הלוח…", unreachable:"אין חיבור ללוח כרגע. הוא יתעדכן כשהחיבור יחזור.",
   setup:"ההתקנה לא הושלמה: יש להדביק את הגדרות Firebase בקובץ firebase-config.js.",
   authFail:"לא ניתן להתחבר. ב-Firebase יש להפעיל כניסה אנונימית (Authentication ← Sign-in method).",
@@ -340,7 +371,8 @@ const pad = n => String(n).padStart(2,'0');
 const $ = id => document.getElementById(id);
 
 const S = { uid:null, isAnon:true, email:'', isAdmin:false, members:{}, bookings:[], swapsFrom:[], swapsTo:[], machine:{broken:false}, prefs:null, prefsLoaded:false, justBooked:null,
-  loadedB:false, ready:false, unreachable:false, setup:false, authFail:false, day:null, swapTarget:null, confirm:null, editing:false, busy:false };
+  loadedB:false, ready:false, unreachable:false, setup:false, authFail:false, day:null, swapTarget:null, confirm:null, editing:false, busy:false,
+  adminTab:'schedule', adminFilter:'', adminEdit:null, admForm:null, memberEdit:null, history:null, historyLoading:false };
 let db=null, auth=null, unsubs=[];
 
 function locale(){ return L==='he'?'he-IL':'en-GB'; }
@@ -361,8 +393,8 @@ function remindOn(){ return !!(S.prefs && S.prefs.email===true); }
 function savePrefs(p){ return db.doc('prefs/'+S.uid).set(Object.assign({lang:L, updatedAt:Date.now()}, p), {merge:true}); }
 function myFuture(){ const now=Date.now(); return S.bookings.filter(b=>b.uid===S.uid && b.startMs>now).sort((a,b)=>a.startMs-b.startMs); }
 function allSwaps(){ const m=new Map(); for(const s of S.swapsFrom.concat(S.swapsTo)) m.set(s.id,s); return [...m.values()]; }
-function isFree(s){ const e=s+SLOT; return !S.bookings.some(b=>b.startMs<e && effEnd(b)>s); }
-function freeStarts(k){ const ds=dayStart(k), de=dayEnd(k), now=Date.now(), out=[]; for(let s=ds; s<de; s+=TICK){ if(s<=now-10*60000) continue; if(isFree(s)) out.push(s); } return out; }
+function isFree(s, exceptId){ const e=s+SLOT; return !S.bookings.some(b=>b.id!==exceptId && b.startMs<e && effEnd(b)>s); }
+function freeStarts(k, exceptId){ const ds=dayStart(k), de=dayEnd(k), now=Date.now(), out=[]; for(let s=ds; s<de; s+=TICK){ if(s<=now-10*60000) continue; if(isFree(s, exceptId)) out.push(s); } return out; }
 
 function setHTML(el, html){
   if(el._last===html) return;
@@ -615,27 +647,106 @@ function renderBookForm(){
 }
 
 /* ---------- admin + account ---------- */
+function memberIds(){ return Object.keys(S.members).sort((a,b)=>(S.members[a].name||'').localeCompare(S.members[b].name||'')); }
 function renderAdmin(){
   const el=$('admin');
+  $('admin-link').hidden=!(S.ready && S.isAdmin);
   if(!S.ready || !S.isAdmin){ setHTML(el,''); return; }
-  const now=Date.now();
-  const ids=Object.keys(S.members).sort((a,b)=>(S.members[a].name||'').localeCompare(S.members[b].name||''));
-  let h=`<div class="card admin" style="display:flex;flex-direction:column;gap:12px">
+  const ids=memberIds();
+  const tabs=[['schedule',t('adminTabSchedule')],['members',t('members',{n:ids.length})],['history',t('adminTabHistory')]];
+  let h=`<div class="card admin" style="display:flex;flex-direction:column;gap:14px">
     <div class="turn-head"><h2>${t('adminTitle')}</h2><span class="pill">${t('adminBadge')}</span></div>
     <div class="reg-summary"><p>${S.machine.broken?t('machineBroken'):t('machineOk')}</p>
       <button type="button" class="${S.machine.broken?'primary':'danger'}" data-act="machine">${S.machine.broken?t('markOk'):t('markBroken')}</button></div>
-    <h3>${t('members',{n:ids.length})}</h3>`;
+    <div class="tabs" role="group">${tabs.map(([k,l])=>`<button type="button" data-act="adm-tab" data-tab="${k}" aria-pressed="${S.adminTab===k}">${esc(l)}</button>`).join('')}</div>`;
+  h += S.adminTab==='members' ? admMembersHTML(ids) : S.adminTab==='history' ? admHistoryHTML() : admScheduleHTML(ids);
+  setHTML(el, h+'</div>');
+}
+// Schedule tab: every upcoming turn, grouped by day.
+function admScheduleHTML(ids){
+  const now=Date.now();
+  let h=`<div class="adm-bar"><button type="button" class="primary" data-act="adm-new"${ids.length?'':' disabled'}>${t('admBookFor')}</button>
+    <div class="adm-filter"><label for="adm-filter" class="small">${t('admShow')}</label><select id="adm-filter"><option value="">${t('admFilterAll')}</option>${ids.map(id=>`<option value="${esc(id)}"${S.adminFilter===id?' selected':''}>${esc(S.members[id].name)}</option>`).join('')}</select></div></div>`;
+  if(S.adminEdit) h+=admEditorHTML(ids);
+  const list=S.bookings.filter(b=>effEnd(b)>now && (!S.adminFilter || b.uid===S.adminFilter)).sort((a,b)=>a.startMs-b.startMs);
+  if(!list.length) return h+`<p class="muted">${t('admNoTurns')}</p>`;
+  let day=null;
+  for(const b of list){
+    const k=dayKey(b.startMs);
+    if(k!==day){ if(day!==null) h+='</div>'; day=k; h+=`<h3>${esc(dayLabel(k))}</h3><div class="list">`; }
+    const live=b.startMs<=now, conf=S.confirm==='admin:'+b.id;
+    let acts='';
+    if(live && typeof b.doneAt!=='number') acts+=`<button type="button" class="mini primary" data-act="adm-end" data-id="${esc(b.id)}">${t('admEndNow')}</button>`;
+    if(!live) acts+=`<button type="button" class="mini" data-act="adm-edit" data-id="${esc(b.id)}">${t('admEditBtn')}</button>`;
+    acts+= conf ? `<button type="button" class="mini danger solid" data-act="admin-cancel-yes" data-id="${esc(b.id)}">${t('confirmCancel')}</button><button type="button" class="mini" data-act="keep">${t('keep')}</button>`
+                : `<button type="button" class="mini danger" data-act="admin-cancel" data-id="${esc(b.id)}">${t('adminCancel')}</button>`;
+    h+=`<div class="row${S.adminEdit===b.id?' mine':''}"><div class="when">${fmtTime(b.startMs)}–${fmtTime(effEnd(b))}</div>
+      <div class="who"><strong>${esc(memberName(b.uid))}</strong>${live?`<span class="pill mine">${t('nowPill')}</span>`:''}${phoneBlock(b.uid)}</div><div class="acts">${acts}</div></div>`;
+  }
+  return h+'</div>';
+}
+// Book for someone, or edit a turn: person, day, start time.
+function admEditorHTML(ids){
+  const f=S.admForm, old=S.adminEdit==='new'?null:S.bookings.find(b=>b.id===S.adminEdit);
+  if(!f || (S.adminEdit!=='new' && !old)) return '';
+  const starts=freeStarts(f.day, old?old.id:undefined);
+  const start=starts.map(String).includes(String(f.start)) ? String(f.start) : (starts.length?String(starts[0]):'');
+  const clash=!!f.uid && S.bookings.some(b=>b.uid===f.uid && dayKey(b.startMs)===f.day && (!old || b.id!==old.id));
+  const tid='adm-time-'+f.day; // the id changes with the day, so a stale time isn't carried over
+  return `<div class="adm-editor" id="adm-editor"><h3>${old?t('admEditTurn'):t('admBookFor')}</h3>
+    <div class="adm-grid">
+      <div class="field"><label for="adm-who">${t('admPerson')}</label><select id="adm-who">${ids.map(id=>`<option value="${esc(id)}"${f.uid===id?' selected':''}>${esc(S.members[id].name)}</option>`).join('')}</select></div>
+      <div class="field"><label for="adm-day">${t('admDay')}</label><select id="adm-day">${dayKeys().map(k=>`<option value="${k}"${f.day===k?' selected':''}>${esc(dayLabel(k))}</option>`).join('')}</select></div>
+      <div class="field"><label for="${tid}">${t('startLabel')}</label><select id="${tid}" data-adm-time>${starts.length?starts.map(x=>`<option value="${x}"${String(x)===start?' selected':''}>${fmtTime(x)}</option>`).join(''):`<option value="">${t('noStarts')}</option>`}</select></div>
+    </div>
+    ${clash?`<p class="small warn-text">${t('errAdminDaily')}</p>`:''}
+    <div class="acts-wrap"><button type="button" class="primary" data-act="adm-save"${!starts.length||clash?' disabled':''}>${t('save')}</button><button type="button" data-act="adm-edit-close">${t('cancelEdit')}</button></div>
+  </div>`;
+}
+// Members tab: details, edit, remove, and neighbours added by the admin.
+function admMembersHTML(ids){
+  const now=Date.now();
+  let h=`<div class="acts-wrap"><button type="button" data-act="adm-m-new">${t('admAddNeighbour')}</button></div>`;
+  if(S.memberEdit==='new') h+=admMemberFormHTML(null);
   if(!ids.length) h+=`<p class="muted">${t('noMembers')}</p>`;
   h+='<div>';
   for(const id of ids){
-    const m=S.members[id]; const n=S.bookings.filter(b=>b.uid===id && b.startMs>now).length;
-    const conf=S.confirm==='rm:'+id;
-    h+=`<div class="member"><div class="info"><strong>${esc(m.name)}${id===S.uid?` <span class="pill">${t('adminBadge')}</span>`:''}</strong>
-      <span class="small"><span class="phone">${esc(m.phone)}</span> · <span dir="ltr">${esc(m.email)}</span></span><span class="small muted">${t('upcoming',{n})}</span></div>
-      <div class="acts-wrap">${id===S.uid?'':conf?`<button type="button" class="mini danger solid" data-act="rm-yes" data-uid="${esc(id)}">${t('confirmRemove')}</button><button type="button" class="mini" data-act="keep">${t('keep')}</button>`:`<button type="button" class="mini danger" data-act="rm" data-uid="${esc(id)}">${t('remove')}</button>`}</div></div>`;
+    if(S.memberEdit===id){ h+=admMemberFormHTML(id); continue; }
+    const m=S.members[id], n=S.bookings.filter(b=>b.uid===id && b.startMs>now).length, conf=S.confirm==='rm:'+id;
+    const pill = id===S.uid ? ` <span class="pill">${t('adminBadge')}</span>` : id.startsWith('manual_') ? ` <span class="pill ok">${t('admManual')}</span>` : '';
+    h+=`<div class="member"><div class="info"><strong>${esc(m.name)}${pill}</strong>
+      <span class="small"><span class="phone">${esc(m.phone)}</span>${m.email?` · <span dir="ltr">${esc(m.email)}</span>`:''}</span><span class="small muted">${t('upcoming',{n})}</span></div>
+      <div class="acts-wrap"><button type="button" class="mini" data-act="adm-m-edit" data-uid="${esc(id)}">${t('admEditBtn')}</button>${id===S.uid?'':conf?`<button type="button" class="mini danger solid" data-act="rm-yes" data-uid="${esc(id)}">${t('confirmRemove')}</button><button type="button" class="mini" data-act="keep">${t('keep')}</button>`:`<button type="button" class="mini danger" data-act="rm" data-uid="${esc(id)}">${t('remove')}</button>`}</div></div>`;
   }
-  h+=`</div><p class="muted small">${t('removeHint')}</p></div>`;
-  setHTML(el,h);
+  return h+`</div><p class="muted small">${t('removeHint')}</p>`;
+}
+function admMemberFormHTML(id){
+  const m=id?S.members[id]:{name:'',phone:'',email:''};
+  return `<div class="adm-editor" id="adm-editor"><h3>${id?t('edit'):t('admAddNeighbour')}</h3>${id?'':`<p class="small muted">${t('admManualHint')}</p>`}
+    <div class="adm-grid">
+      <div class="field"><label for="adm-m-name">${t('name')}</label><input id="adm-m-name" autocomplete="off" maxlength="60" value="${esc(m.name)}"></div>
+      <div class="field"><label for="adm-m-phone">${t('phone')}</label><input id="adm-m-phone" type="tel" dir="ltr" autocomplete="off" maxlength="25" placeholder="050-123-4567" value="${esc(m.phone)}"></div>
+      <div class="field"><label for="adm-m-email">${t('emailOptional')}</label><input id="adm-m-email" type="email" dir="ltr" autocomplete="off" maxlength="120" value="${esc(m.email)}"></div>
+    </div>
+    <div class="acts-wrap"><button type="button" class="primary" data-act="adm-m-save" data-uid="${esc(id||'')}">${t('save')}</button><button type="button" data-act="adm-m-close">${t('cancelEdit')}</button></div>
+  </div>`;
+}
+// History tab: the last 30 days, loaded on demand.
+function admHistoryHTML(){
+  if(S.historyLoading || !S.history) return `<p class="muted">${t('admLoadingHistory')}</p>`;
+  const list=S.history;
+  let h=`<div class="reg-summary"><p>${t('admHistoryTitle',{n:list.length})}</p><button type="button" class="mini" data-act="adm-hist-refresh">${t('admRefresh')}</button></div>`;
+  if(!list.length) return h+`<p class="muted">${t('admHistoryEmpty')}</p>`;
+  const counts={}; for(const b of list) counts[b.uid]=(counts[b.uid]||0)+1;
+  h+=`<div class="legend">${Object.entries(counts).sort((a,b)=>b[1]-a[1]).map(([u,n])=>`<span><strong>${esc(memberName(u))}</strong> <span class="num">${n}</span></span>`).join('')}</div>`;
+  let day=null;
+  for(const b of list){
+    const k=dayKey(b.startMs);
+    if(k!==day){ if(day!==null) h+='</div>'; day=k; h+=`<h3>${esc(dayLabel(k))}</h3><div class="list">`; }
+    h+=`<div class="row"><div class="when">${fmtTime(b.startMs)}–${fmtTime(effEnd(b))}</div>
+      <div class="who"><strong>${esc(memberName(b.uid))}</strong>${typeof b.doneAt==='number'?`<span class="small muted">${t('admDoneAt',{t:fmtTime(b.doneAt)})}</span>`:''}</div><div class="acts"></div></div>`;
+  }
+  return h+'</div>';
 }
 function renderAccount(){
   const el=$('account');
@@ -730,8 +841,53 @@ async function acceptSwap(sw){
   try{ await batch.commit(); }
   catch(e){ if(e && e.code==='permission-denied') throw {code:'swapday'}; throw e; }
 }
+// Admin: book for someone, or move / reassign a turn, in one batch.
+// Each document is written at most once: a tick kept by the moved turn is overwritten, not deleted and re-created.
+async function adminSaveBooking(){
+  const old=S.adminEdit==='new' ? null : S.bookings.find(b=>b.id===S.adminEdit);
+  if(S.adminEdit!=='new' && !old) throw {code:'admgone'};
+  const uid=$('adm-who') && $('adm-who').value, sel=document.querySelector('[data-adm-time]'), startMs=Number(sel && sel.value)||0;
+  if(!uid || !S.members[uid]) throw {code:'admwho'};
+  if(!startMs) throw {code:'time'};
+  const day=dayKey(startMs), id=String(startMs);
+  if(!isFree(startMs, old?old.id:undefined)) throw {code:'taken'};
+  if(S.bookings.some(b=>b.uid===uid && dayKey(b.startMs)===day && (!old || b.id!==old.id))) throw {code:'admdaily'};
+  const w=new Map();
+  if(old){ w.set('bookings/'+old.id,null); for(const tk of tickIds(old)) w.set('ticks/'+tk,null); w.set('daily/'+old.uid+'_'+old.day,null); }
+  w.set('bookings/'+id, {uid, startMs, endMs:startMs+SLOT, day, createdAt:(old && old.id===id && old.createdAt) || Date.now()});
+  for(const tk of tickIds({startMs})) w.set('ticks/'+tk, {booking:id});
+  w.set('daily/'+uid+'_'+day, {uid, day, booking:id});
+  const batch=db.batch();
+  for(const [path,data] of w){ if(data) batch.set(db.doc(path), data); else batch.delete(db.doc(path)); }
+  try{ await batch.commit(); }
+  catch(e){ if(e && e.code==='permission-denied') throw {code:'adminrules'}; throw e; }
+  S.adminEdit=null;
+  toast(t(old?'admSaved':'admBooked', {name:S.members[uid].name, t:fmtWhen(startMs)}));
+}
+async function adminSaveMember(uidIn){
+  const uid=uidIn || ('manual_'+Date.now().toString(36)+Math.random().toString(36).slice(2,8));
+  const name=$('adm-m-name').value.trim(), phone=$('adm-m-phone').value.trim(), email=$('adm-m-email').value.trim();
+  if(!name) throw {code:'name'};
+  if(phone.replace(/\D/g,'').length<9 || phone.length>25) throw {code:'phone'};
+  if(email && !/^[^@ ]+@[^@ ]+[.][^@ ]+$/.test(email)) throw {code:'email'};
+  const prev=S.members[uid];
+  try{ await db.doc('members/'+uid).set({name, email, phone, joinedAt:(prev && prev.joinedAt) || Date.now()}); }
+  catch(e){ if(e && e.code==='permission-denied') throw {code:'adminrules'}; throw e; }
+  S.memberEdit=null; toast(t('saved'));
+}
+async function loadHistory(){
+  S.historyLoading=true; renderAdmin();
+  try{
+    const now=Date.now();
+    const snap=await db.collection('bookings').where('startMs','>=',now-30*24*H).where('startMs','<',now).orderBy('startMs','desc').get();
+    S.history=docs(snap);
+  }catch(e){ console.warn(e); S.history=[]; toast(t('errGeneric')); }
+  S.historyLoading=false; renderAdmin();
+}
+function scrollToEditor(){ const e=$('adm-editor'); if(e) e.scrollIntoView({block:'center', behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'}); }
 function errMsg(e){
-  const map={taken:'errTaken',daily:'errDaily',past:'errPast',reg:'errReg',ooo:'errOOO',swapday:'errSwapDay',swapgone:'errSwapGone',time:'errTime',dup:'errSwapDup'};
+  const map={taken:'errTaken',daily:'errDaily',past:'errPast',reg:'errReg',ooo:'errOOO',swapday:'errSwapDay',swapgone:'errSwapGone',time:'errTime',dup:'errSwapDup',
+    name:'errName',email:'errEmail',phone:'errPhone',admdaily:'errAdminDaily',admgone:'errAdmGone',admwho:'errAdmWho',adminrules:'errAdminRules'};
   if(e && map[e.code]) return t(map[e.code]);
   if(e && e.code==='permission-denied') return t('errDenied');
   return t('errGeneric');
@@ -807,11 +963,26 @@ document.addEventListener('click', async ev=>{
         const batch=db.batch();
         batch.delete(db.doc('members/'+uid));
         for(const b of S.bookings.filter(b=>b.uid===uid && b.startMs>now)) addDeleteBooking(batch,b);
-        await batch.commit(); toast(t('removed')); break; }
+        await batch.commit(); if(S.memberEdit===uid) S.memberEdit=null; toast(t('removed')); break; }
+      case 'goto-admin': $('admin').scrollIntoView({block:'start', behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'}); break;
+      case 'adm-tab': S.adminTab=btn.dataset.tab; S.adminEdit=null; S.memberEdit=null; S.confirm=null; renderAdmin();
+        if(S.adminTab==='history' && !S.history && !S.historyLoading) await loadHistory(); break;
+      case 'adm-hist-refresh': await loadHistory(); break;
+      case 'adm-new': { const ids=memberIds(); S.adminEdit='new'; S.admForm={uid:S.adminFilter||ids[0]||'', day:S.day||dayKeys()[0], start:null}; renderAdmin(); scrollToEditor(); break; }
+      case 'adm-edit': { const b=S.bookings.find(x=>x.id===id); if(!b) break; S.adminEdit=id; S.admForm={uid:b.uid, day:dayKey(b.startMs), start:b.startMs}; renderAdmin(); scrollToEditor(); break; }
+      case 'adm-edit-close': S.adminEdit=null; renderAdmin(); break;
+      case 'adm-save': btn.disabled=true; await adminSaveBooking(); renderAll(); break;
+      case 'adm-end': btn.disabled=true;
+        try{ await markDone(id); }catch(e){ if(e && e.code==='permission-denied') throw {code:'adminrules'}; throw e; }
+        toast(t('admEnded')); break;
+      case 'adm-m-new': S.memberEdit='new'; renderAdmin(); scrollToEditor(); break;
+      case 'adm-m-edit': S.memberEdit=btn.dataset.uid; renderAdmin(); break;
+      case 'adm-m-close': S.memberEdit=null; renderAdmin(); break;
+      case 'adm-m-save': btn.disabled=true; await adminSaveMember(btn.dataset.uid); renderAll(); break;
       case 'google': await googleSignIn(); break;
       case 'signout': await auth.signOut(); break;
     }
-  }catch(e){ console.warn(e); toast(errMsg(e)); renderAll(); }
+  }catch(e){ console.warn(e); toast(errMsg(e)); btn.disabled=false; renderAll(); }
 });
 
 document.addEventListener('submit', async ev=>{
@@ -841,8 +1012,16 @@ document.addEventListener('submit', async ev=>{
   }
 });
 $('start-time').addEventListener('change',()=>renderBookForm());
+document.addEventListener('change', ev=>{
+  const id=ev.target.id||'';
+  if(id==='adm-filter'){ S.adminFilter=ev.target.value; renderAdmin(); }
+  else if(id==='adm-who' || id==='adm-day' || id.startsWith('adm-time-')){
+    S.admForm={uid:$('adm-who').value, day:$('adm-day').value, start:id.startsWith('adm-time-') ? Number(ev.target.value) : (S.admForm && S.admForm.start)};
+    renderAdmin();
+  }
+});
 
-setInterval(()=>{ renderStatus(); renderMine(); renderDays(); renderTimeline(); renderDayList(); renderBookForm(); renderCalPrompt(); }, 30000);
+setInterval(()=>{ renderStatus(); renderMine(); renderDays(); renderTimeline(); renderDayList(); renderBookForm(); renderCalPrompt(); renderAdmin(); }, 30000);
 
 function init(){
   applyLang(); renderAll();

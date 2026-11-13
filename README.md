@@ -1,7 +1,8 @@
 # laundry
 
 A booking queue for one shared washing machine: 45-minute turns, one turn per person per day,
-swaps between neighbours, and an admin panel. Hebrew and English. The whole app is `index.html`,
+swaps between neighbours, and an admin panel (schedule with book / move / reassign / end / cancel,
+members including neighbours without the app, and 30-day history). Hebrew and English. The whole app is `index.html`,
 using Firebase (sign-in and the Firestore database).
 
 ## Reminders
