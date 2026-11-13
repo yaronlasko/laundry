@@ -10,12 +10,17 @@ Laundry Queue: a booking app for one shared washing machine in a building. Hebre
 | Path | What it is |
 |---|---|
 | `index.html` | The entire app: HTML, CSS and JS in one file. No build step, no npm. Firebase compat SDK 10.12.2 is loaded from gstatic. The Firebase web config is inline (that's public by design). |
-| `functions/` | Firebase Cloud Functions (Node 20, v2): `sendReminders` (`index.js`) runs every 5 min and sends reminder emails via Gmail SMTP. The run itself is `processReminders` in `send.js` (takes db, clock and mail sender, so tests can drive it). Timing and email text are pure logic in `reminders.js`, unit tests in `test.js`. |
-| `tests/multiuser/` | End-to-end test: the real app in several browsers at once against the Firebase emulators, with `firestore.test.rules`. |
+| `functions/` | **Not deployed** (the owner doesn't want to pay for Blaze). Firebase Cloud Functions (Node 20, v2): `sendReminders` (`index.js`) runs every 5 min and sends reminder emails via Gmail SMTP. The run itself is `processReminders` in `send.js` (takes db, clock and mail sender, so tests can drive it). Timing and email text are pure logic in `reminders.js`, unit tests in `test.js`. |
+| `tests/multiuser/` | End-to-end test: the real app in several browsers at once against the Firebase emulators. `firestore.test.rules` is the production security rules, with the admin email swapped for `admin@example.com`. |
 | `firebase.json`, `.firebaserc` | Functions deploy config. Project id: `laundry-schedule-fa89a`. |
 | `README.md` | User-facing docs, including the one-time setup for reminders. |
 
 The page is served statically, presumably via GitHub Pages at `https://yaronlasko.github.io/laundry/`. That's also the default `APP_URL` used in the emails.
+
+## Reminders
+- In use: calendar reminders. After a booking, `renderCalPrompt` shows a card (`S.justBooked`) with "Apple / other calendar" (`.ics` with two alarms) and two Google Calendar links. The same buttons are on each turn in "My turns".
+- Email reminders are built but **off**: `EMAIL_REMINDERS` in `index.html` is false, so the prefs listener and all reminder UI are skipped. The multi-user test sets `window.LQ_EMAIL_REMINDERS = true` to keep covering them. The owner chose not to pay for Blaze, so don't push them; free alternatives (GitHub Actions cron) were offered and declined.
+- The `.ics` on iOS opens via a `data:` URL. This can't be tested here, so ask the owner to confirm on their iPhone if it changes.
 
 ## Booking rules (constants at the top of the app script)
 - `SLOT` 45 min per turn = `WASH` 40 min + 5 min to take clothes out. Starts snap to `TICK` 15-minute marks. Bookings open `DAYS` = 14 days ahead.
@@ -38,11 +43,13 @@ The page is served statically, presumably via GitHub Pages at `https://yaronlask
 
 Booking, cancelling, finishing ("done") and accepting swaps each write the booking, its `ticks` and its `daily` doc together in one batch (`book`, `addDeleteBooking`, `markDone`, `acceptSwap`). Keep those three in sync whenever you touch booking writes.
 
-## Security rules are not in this repo
-The real protection is the Firestore security rules in the Firebase console. They block double-booking and a second turn per day, decide who is admin, and control who can edit whose data. The app's own checks only shape the UI and anyone can bypass them.
-- Before adding or changing any write (new fields, new collections, admin acting on other users' data), ask the owner to paste the current rules from Firebase console → Firestore Database → Rules. Don't guess them.
-- When a change needs new rules, give the exact rule text and say where to paste it. Make the UI degrade gracefully until the rules are published. Example: the reminder UI stays hidden while reading `prefs` is denied.
-- Prefer new collections over new fields on existing docs, because existing rules may whitelist fields.
+## Security rules
+The real protection is the Firestore security rules, published by hand in the Firebase console. They block double-booking and a second turn per day, decide who is admin, and control who can edit whose data. The app's own checks only shape the UI and anyone can bypass them.
+- `tests/multiuser/firestore.test.rules` mirrors the production rules. The only difference is the admin email: production uses the owner's Gmail. Don't commit the owner's email to this repo.
+- Admin = Google sign-in with that email and `email_verified`. Booking docs must carry a `day` that is the Israel date of `startMs` (UTC+2 or +3). Accepting a swap must flip both bookings and mark the swap accepted in one batch.
+- The repo copy may drift from what's published. If it matters, ask the owner to paste the current rules from Firebase console → Firestore Database → Rules.
+- To change rules: edit the test copy, run the multi-user test, then give the owner the full text with their email in place to paste and Publish. Make the UI degrade gracefully until it's published. Example: the reminder UI stays hidden while reading `prefs` is denied.
+- Prefer new collections over new fields on existing docs, because the rules whitelist fields with `keys().hasOnly`.
 
 ## Code conventions in index.html
 - Global state lives in `S`. Each area has a `renderX()`, and `renderAll()` redraws everything. Snapshots call `renderAll()`, and a 30-second interval refreshes the time-based views.
@@ -57,7 +64,7 @@ The real protection is the Firestore security rules in the Firebase console. The
 ## Testing
 - Functions: `cd functions && npm install && npm test`.
 - Multi-user: `cd tests/multiuser && npm install && npm test` (also needs `functions/node_modules`; set `SHOTS_DIR` to choose where screenshots go). It starts the Auth and Firestore emulators (project `demo-laundry`), serves `index.html`, swaps the gstatic Firebase SDK for the npm copy pointed at the emulators, and drives 3+ users in separate browser contexts: booking and live sync, a same-moment race for one slot, swaps, cancel, finishing early (via `page.clock`), admin (Google sign-in with a fake emulator token for `admin@example.com`), the reminder run, and Hebrew/RTL. It also sends rule-bypassing writes straight to Firestore to check they're refused. Run it after any change to booking, swap, admin or reminder code.
-- `tests/multiuser/firestore.test.rules` is a **stand-in** written from what the app writes, not the production rules. A pass shows the app and those rules agree; it says nothing about the real rules until the owner shares them.
+- Run the multi-user test after any rules change. It covers the loopholes found so far: fake `day` labels, one-sided swaps, and reading other people's swaps.
 - The app has no test suite. To check UI changes: extract the inline `<script>` and run `node --check` on it, then render with Playwright. Intercept `gstatic.com/firebasejs` requests and serve a small fake `window.firebase` (auth that calls back with a user, and Firestore `collection/doc/where/orderBy/onSnapshot/set/batch` over in-memory data). Screenshot both languages at phone width (around 420px).
 - Real Firebase or email behaviour can't be tested from a cloud session. Say so rather than claiming it works.
 

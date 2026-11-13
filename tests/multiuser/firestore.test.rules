@@ -1,147 +1,203 @@
 rules_version = '2';
-// TEST-ONLY stand-in rules for the multi-user emulator tests.
-// These are NOT the production rules (those live only in the Firebase console).
-// They encode what the app expects the rules to enforce, so the tests can check
-// the app's writes are accepted and that cheating writes are refused.
+
+// Laundry Queue — Firestore security rules, as tested by tests/multiuser.
+// This is a copy of the production rules (Firebase console → Firestore Database → Rules)
+// with ONE difference: the admin email below is the test address admin@example.com.
+// The production copy has the owner's Gmail there instead. Keep the two in sync:
+// change this file, run the multi-user test, then give the owner the full text to paste.
 service cloud.firestore {
   match /databases/{database}/documents {
+
     function signedIn() { return request.auth != null; }
+
+    // Production: the owner's Gmail. Tests: admin@example.com.
     function isAdmin() {
       return signedIn()
-        && request.auth.token.firebase.sign_in_provider == 'google.com'
-        && request.auth.token.email in ['admin@example.com'];
-    }
-    function bookingDoc(id) { return /databases/$(database)/documents/bookings/$(id); }
-    function tickDoc(ms) { return /databases/$(database)/documents/ticks/$(ms); }
-    function dailyDoc(key) { return /databases/$(database)/documents/daily/$(key); }
-    function swapDoc(id) { return /databases/$(database)/documents/swaps/$(id); }
-    function isMember(uid) { return exists(/databases/$(database)/documents/members/$(uid)); }
-    function isBroken() {
-      return exists(/databases/$(database)/documents/config/machine) && get(/databases/$(database)/documents/config/machine).data.broken == true;
-    }
-    function bAfter(id) { return getAfter(bookingDoc(id)).data; }
-    // The booking was handed over by a swap that the signed-in user accepted in this same batch.
-    function swapByMe(b) {
-      return 'swap' in b
-        && getAfter(swapDoc(b.swap)).data.toUid == request.auth.uid
-        && getAfter(swapDoc(b.swap)).data.status == 'accepted';
+        && request.auth.token.email == 'admin@example.com'
+        && request.auth.token.email_verified == true;
     }
 
-    match /adminCheck/{id} { allow read: if isAdmin(); }
+    function bookingPath(id) { return /databases/$(database)/documents/bookings/$(id); }
+    function dailyPath(id)   { return /databases/$(database)/documents/daily/$(id); }
+    function tickPath(id)    { return /databases/$(database)/documents/ticks/$(id); }
+    function memberPath(id)  { return /databases/$(database)/documents/members/$(id); }
+    function swapPath(id)    { return /databases/$(database)/documents/swaps/$(id); }
+    function machinePath()   { return /databases/$(database)/documents/config/machine; }
 
-    match /config/machine {
-      allow read: if signedIn();
+    // The day key ("YYYY-MM-DD") must be the date of startMs in Israel (UTC+2 in winter, UTC+3 in summer).
+    function isDateOf(day, ms) {
+      let p = day.split('-');
+      let t = timestamp.value(ms);
+      return int(p[0]) == t.year() && int(p[1]) == t.month() && int(p[2]) == t.day();
+    }
+    function isIsraelDay(day, ms) {
+      return isDateOf(day, ms + 7200000) || isDateOf(day, ms + 10800000);
+    }
+
+    function machineOk() {
+      return !exists(machinePath()) || get(machinePath()).data.broken != true;
+    }
+
+    // The page reads this only to find out whether the viewer is the admin.
+    match /adminCheck/{doc} {
+      allow read: if isAdmin();
+    }
+
+    match /config/{doc} {
+      allow read: if true;
       allow write: if isAdmin();
     }
 
+    // Sign-up details. Visible to everyone using the page (so people can call each other).
     match /members/{uid} {
       allow read: if signedIn();
       allow create, update: if signedIn() && request.auth.uid == uid
         && request.resource.data.keys().hasOnly(['name', 'email', 'phone', 'joinedAt'])
-        && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 60
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 60
         && request.resource.data.email is string && request.resource.data.email.size() <= 120
-        && request.resource.data.phone is string && request.resource.data.phone.size() <= 25;
-      allow delete: if isAdmin();
+        && request.resource.data.email.matches('^[^@ ]+@[^@ ]+[.][^@ ]+$')
+        && request.resource.data.phone is string
+        && request.resource.data.phone.size() >= 9 && request.resource.data.phone.size() <= 25;
+      allow delete: if signedIn() && (request.auth.uid == uid || isAdmin());
     }
 
-    match /prefs/{uid} {
-      allow read, write: if signedIn() && request.auth.uid == uid;
-    }
-
-    match /reminders/{id} { allow read, write: if false; }
-
+    // A turn. Its id is its start time in milliseconds; turns start on a 15-minute grid and last 45 minutes.
+    // Creating one must, in the same write, claim its three 15-minute "ticks" (so turns can't overlap)
+    // and the person's "daily" document for that day (so it's one turn per person per day).
     match /bookings/{id} {
-      allow read: if signedIn();
+      allow read: if true;
 
       allow create: if signedIn()
-        && request.resource.data.uid == request.auth.uid
-        && isMember(request.auth.uid) && !isBroken()
+        && exists(memberPath(request.auth.uid))
+        && machineOk()
         && request.resource.data.keys().hasOnly(['uid', 'startMs', 'endMs', 'day', 'createdAt'])
+        && request.resource.data.uid == request.auth.uid
         && request.resource.data.startMs is int
         && id == string(request.resource.data.startMs)
         && request.resource.data.startMs % 900000 == 0
         && request.resource.data.endMs == request.resource.data.startMs + 2700000
-        && request.resource.data.startMs > request.time.toMillis() - 600000
+        && request.resource.data.startMs > request.time.toMillis() - 900000
         && request.resource.data.startMs < request.time.toMillis() + 15 * 86400000
-        && getAfter(tickDoc(string(request.resource.data.startMs))).data.booking == id
-        && getAfter(tickDoc(string(request.resource.data.startMs + 900000))).data.booking == id
-        && getAfter(tickDoc(string(request.resource.data.startMs + 1800000))).data.booking == id
-        && getAfter(dailyDoc(request.resource.data.uid + '_' + request.resource.data.day)).data.booking == id;
+        && request.resource.data.day is string
+        && request.resource.data.day.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && isIsraelDay(request.resource.data.day, request.resource.data.startMs)
+        && getAfter(dailyPath(request.auth.uid + '_' + request.resource.data.day)).data.booking == id
+        && getAfter(tickPath(string(request.resource.data.startMs))).data.booking == id
+        && getAfter(tickPath(string(request.resource.data.startMs + 900000))).data.booking == id
+        && getAfter(tickPath(string(request.resource.data.startMs + 1800000))).data.booking == id;
 
-      allow update: if signedIn() && (
-        // "My laundry is out"
-        (resource.data.uid == request.auth.uid
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['doneAt'])
-          && request.resource.data.doneAt is int)
-        ||
-        // accepting a swap moves both bookings in one batch
-        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['uid', 'swap'])
-          && swapMoves(id))
-      );
-
-      function swapMoves(id) {
-        let sw = getAfter(swapDoc(request.resource.data.swap)).data;
-        let before = get(swapDoc(request.resource.data.swap)).data;
-        return before.status == 'pending' && sw.status == 'accepted' && sw.toUid == request.auth.uid
-          && resource.data.startMs > request.time.toMillis()
-          && ((id == sw.fromBooking && resource.data.uid == sw.fromUid && request.resource.data.uid == sw.toUid)
-           || (id == sw.toBooking && resource.data.uid == sw.toUid && request.resource.data.uid == sw.fromUid))
-          && getAfter(dailyDoc(request.resource.data.uid + '_' + resource.data.day)).data.booking == id;
+      // "My laundry is out": the owner records when they finished, once.
+      function isDone() {
+        return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['doneAt'])
+          && !('doneAt' in resource.data)
+          && resource.data.uid == request.auth.uid
+          && request.resource.data.doneAt is int
+          && request.resource.data.doneAt >= resource.data.startMs
+          && request.resource.data.doneAt <= resource.data.endMs;
       }
 
+      // Accepting a swap: the person asked flips the owners of both turns, in the same write
+      // that marks the request accepted (so nobody can take one turn without giving the other).
+      function isSwap() {
+        let sw = get(swapPath(request.resource.data.swap));
+        let newUid = request.resource.data.uid;
+        return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['uid', 'swap'])
+          && sw.data.status == 'pending'
+          && sw.data.toUid == request.auth.uid
+          && getAfter(swapPath(request.resource.data.swap)).data.status == 'accepted'
+          && getAfter(bookingPath(sw.data.fromBooking)).data.uid == sw.data.toUid
+          && getAfter(bookingPath(sw.data.toBooking)).data.uid == sw.data.fromUid
+          && resource.data.startMs > request.time.toMillis()
+          && ((sw.data.fromBooking == id && resource.data.uid == sw.data.fromUid && newUid == sw.data.toUid)
+            || (sw.data.toBooking == id && resource.data.uid == sw.data.toUid && newUid == sw.data.fromUid))
+          && getAfter(dailyPath(newUid + '_' + resource.data.day)).data.booking == id;
+      }
+
+      allow update: if signedIn() && (isDone() || isSwap());
       allow delete: if signedIn() && (resource.data.uid == request.auth.uid || isAdmin());
     }
 
-    // One doc per 15-minute block. Create-only, so a second booking over the same block is refused.
+    // One document per 15 minutes of machine time. Created only together with its turn.
     match /ticks/{t} {
-      allow read: if signedIn();
+      allow read: if true;
+
+      function tickOwnedByNewBooking(b) {
+        let bk = getAfter(bookingPath(b));
+        return bk.data.uid == request.auth.uid
+          && (int(t) == bk.data.startMs
+            || int(t) == bk.data.startMs + 900000
+            || int(t) == bk.data.startMs + 1800000);
+      }
+      function tickFreed(b) {
+        let bk = getAfter(bookingPath(b));
+        return ('doneAt' in bk.data) && int(t) >= bk.data.doneAt;
+      }
+
       allow create: if signedIn()
         && request.resource.data.keys().hasOnly(['booking'])
-        && bAfter(request.resource.data.booking).uid == request.auth.uid
-        && int(t) >= int(request.resource.data.booking)
-        && int(t) < int(request.resource.data.booking) + 2700000;
-      allow update: if false;
-      allow delete: if signedIn() && (isAdmin()
-        || !exists(bookingDoc(resource.data.booking))
-        || get(bookingDoc(resource.data.booking)).data.uid == request.auth.uid);
+        && tickOwnedByNewBooking(request.resource.data.booking);
+      allow delete: if signedIn() && (resource == null
+        || isAdmin()
+        || !existsAfter(bookingPath(resource.data.booking))
+        || tickFreed(resource.data.booking));
     }
 
-    // One doc per person per day.
-    match /daily/{key} {
-      allow read: if signedIn();
-      function validDaily() {
-        let d = request.resource.data;
-        let b = bAfter(d.booking);
-        return key == d.uid + '_' + d.day && d.keys().hasOnly(['uid', 'day', 'booking'])
-          && b.uid == d.uid && b.day == d.day;
+    // "<uid>_<day>": the one turn this person has on that day.
+    match /daily/{d} {
+      allow read: if true;
+
+      function dailyValid() {
+        let bk = getAfter(bookingPath(request.resource.data.booking));
+        return request.resource.data.keys().hasOnly(['uid', 'day', 'booking'])
+          && d == request.resource.data.uid + '_' + request.resource.data.day
+          && bk.data.uid == request.resource.data.uid
+          && bk.data.day == request.resource.data.day;
       }
-      // The doc it replaces must point to a booking that is gone or no longer theirs.
-      function replacedIsStale() {
-        return !existsAfter(bookingDoc(resource.data.booking))
-          || bAfter(resource.data.booking).uid != resource.data.uid;
+      // The turn it points to is gone or now belongs to someone else.
+      function dailyStale() {
+        return !existsAfter(bookingPath(resource.data.booking))
+          || getAfter(bookingPath(resource.data.booking)).data.uid != resource.data.uid;
       }
-      allow create: if signedIn() && validDaily()
-        && (request.resource.data.uid == request.auth.uid || swapByMe(bAfter(request.resource.data.booking)));
-      allow update: if signedIn() && validDaily()
-        && swapByMe(bAfter(request.resource.data.booking)) && replacedIsStale();
-      allow delete: if signedIn() && (isAdmin() || replacedIsStale());
+
+      allow create: if signedIn() && dailyValid();
+      allow update: if signedIn() && dailyValid() && dailyStale();
+      allow delete: if signedIn() && (resource == null || isAdmin() || dailyStale());
     }
 
-    match /swaps/{id} {
+    // Swap requests: only the two people involved (and the admin) can see them.
+    match /swaps/{s} {
       allow read: if signedIn()
-        && (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid);
+        && (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid || isAdmin());
       allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['fromUid', 'toUid', 'fromBooking', 'toBooking', 'status', 'createdAt'])
         && request.resource.data.fromUid == request.auth.uid
         && request.resource.data.status == 'pending'
-        && get(bookingDoc(request.resource.data.fromBooking)).data.uid == request.auth.uid
-        && get(bookingDoc(request.resource.data.toBooking)).data.uid == request.resource.data.toUid;
+        && get(bookingPath(request.resource.data.fromBooking)).data.uid == request.auth.uid
+        && get(bookingPath(request.resource.data.toBooking)).data.uid == request.resource.data.toUid;
       allow update: if signedIn()
-        && resource.data.toUid == request.auth.uid && resource.data.status == 'pending'
+        && resource.data.toUid == request.auth.uid
+        && resource.data.status == 'pending'
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'answeredAt'])
         && (request.resource.data.status == 'declined'
-          || (request.resource.data.status == 'accepted' && bAfter(resource.data.fromBooking).swap == id));
+          || (request.resource.data.status == 'accepted'
+            && getAfter(bookingPath(resource.data.fromBooking)).data.uid == resource.data.toUid
+            && getAfter(bookingPath(resource.data.toBooking)).data.uid == resource.data.fromUid));
       allow delete: if signedIn()
         && (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid || isAdmin());
+    }
+
+    // Email reminder setting: private to each person.
+    match /prefs/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow write: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['email', 'lang', 'updatedAt'])
+        && request.resource.data.email is bool;
+    }
+
+    // "Reminder already sent" markers: written only by the reminder function, which bypasses these rules.
+    match /reminders/{id} {
+      allow read, write: if false;
     }
   }
 }

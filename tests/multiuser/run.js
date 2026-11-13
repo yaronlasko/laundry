@@ -1,7 +1,7 @@
 // Multi-user end-to-end test: the real index.html in several separate browsers
 // (each its own anonymous Firebase user), all talking to the Firebase emulators.
 // Run with: npm test   (starts the emulators, runs this file, stops them)
-// Uses firestore.test.rules, a stand-in for the production rules.
+// Uses firestore.test.rules: the production rules with a test admin email.
 const { chromium } = require('playwright');
 const http = require('http');
 const fs = require('fs');
@@ -61,6 +61,8 @@ async function openUser(label, opts = {}) {
   const ctx = opts.ctx || await browser.newContext({ locale: opts.locale || 'en-US', timezoneId: 'Asia/Jerusalem', viewport: { width: 420, height: 900 } });
   const page = await ctx.newPage();
   if (opts.fakeNow) await page.clock.setFixedTime(new Date(opts.fakeNow));
+  // Email reminders are switched off in the live app; most users here turn them on to test them.
+  if (opts.emailReminders !== false) await page.addInitScript(() => { window.LQ_EMAIL_REMINDERS = true; });
   page.on('pageerror', e => pageErrors.push(`${label}: ${e.message}`));
   await page.route(/gstatic\.com\/firebasejs\/[^/]+\/([\w-]+\.js)/, route => {
     const file = route.request().url().split('/').pop();
@@ -96,14 +98,14 @@ async function selectStart(u, ms) {
 }
 async function book(u, ms) { await selectStart(u, ms); return toastAfter(u.page, () => u.page.click('#book-btn')); }
 // Writes straight to Firestore from the user's browser, skipping the app's own checks: only the rules decide.
-async function rawBook(u, startMs) {
+async function rawBook(u, startMs, dayOverride) {
   return u.page.evaluate(async ({ startMs, day }) => {
     const db = firebase.firestore(), uid = firebase.auth().currentUser.uid, id = String(startMs), b = db.batch();
     b.set(db.doc('bookings/' + id), { uid, startMs, endMs: startMs + 2700000, day, createdAt: Date.now() });
     for (const k of [0, 1, 2]) b.set(db.doc('ticks/' + (startMs + k * 900000)), { booking: id });
     b.set(db.doc('daily/' + uid + '_' + day), { uid, day, booking: id });
     try { await b.commit(); return 'ok'; } catch (e) { return e.code; }
-  }, { startMs, day: dayKey(startMs) });
+  }, { startMs, day: dayOverride || dayKey(startMs) });
 }
 async function raw(u, fnSrc, arg) {
   return u.page.evaluate(async ({ fnSrc, arg }) => {
@@ -112,6 +114,15 @@ async function raw(u, fnSrc, arg) {
   }, { fnSrc, arg });
 }
 async function shot(u, name) { fs.mkdirSync(SHOTS, { recursive: true }); await u.page.screenshot({ path: path.join(SHOTS, name + '.png'), fullPage: true }); }
+// Undo a booking a test managed to sneak in, so later steps start from a clean state.
+async function wipeBooking(ms) {
+  const b = await getDoc('bookings/' + ms); if (!b) return;
+  const batch = db.batch();
+  batch.delete(db.doc('bookings/' + ms));
+  for (const k of [0, 1, 2]) batch.delete(db.doc('ticks/' + (ms + k * TICK)));
+  batch.delete(db.doc(`daily/${b.uid}_${b.day}`));
+  await batch.commit();
+}
 async function bookingState(ms) {
   const id = String(ms), b = await getDoc('bookings/' + id);
   const ticks = await Promise.all([0, 1, 2].map(k => getDoc('ticks/' + (ms + k * TICK))));
@@ -145,6 +156,18 @@ async function main() {
     assert(s.b && s.b.uid === A.uid, 'booking not stored for Dana');
     assert(s.ticks.every(t => t === String(a10)), 'ticks not written: ' + s.ticks);
     assert(s.daily && s.daily.booking === String(a10), 'daily doc missing');
+  });
+  await check('after booking, a calendar card appears; the phone-calendar file has both reminders', async () => {
+    await A.page.waitForSelector(`.cal-prompt [data-act=ics][data-id="${a10}"]`, { timeout: 5000 });
+    await shot(A, '0-calendar-prompt');
+    const [dl] = await Promise.all([A.page.waitForEvent('download'), A.page.click('.cal-prompt [data-act=ics]')]);
+    const ics = fs.readFileSync(await dl.path(), 'utf8');
+    assert((ics.match(/BEGIN:VEVENT/g) || []).length === 2, 'expected 2 events');
+    assert(ics.includes('TRIGGER:-PT10M') && ics.includes('TRIGGER:-PT0M'), 'alarms missing');
+    const gl = await A.page.$$eval('.cal-prompt a[href*="calendar.google.com"]', as => as.length);
+    assert(gl === 2, 'Google links: ' + gl);
+    await A.page.click('[data-act=cal-close]');
+    await eventually(async () => !(await A.page.$('.cal-prompt')), 'card did not close');
   });
   await check("Avi sees Dana's turn appear without reloading (name + phone)", async () => {
     await showDay(B, a10);
@@ -187,10 +210,18 @@ async function main() {
     assert((await raw(B, `await db.doc('bookings/'+arg).delete()`, String(a10))) === 'permission-denied', 'booking delete allowed');
     assert((await raw(B, `await db.doc('daily/'+arg).delete()`, `${A.uid}_${dayKey(a10)}`)) === 'permission-denied', 'daily delete allowed');
   });
-  await check("Avi can't edit Dana's details, read her reminder setting, or her swaps", async () => {
-    assert((await raw(B, `await db.doc('members/'+arg).set({name:'x',email:'x@x.x',phone:'1',joinedAt:1})`, A.uid)) === 'permission-denied', 'member edit allowed');
+  await check('a second turn on the same day, labelled as a different date, is refused', async () => {
+    const ms = at(D1, 16), r = await rawBook(A, ms, '2099-01-01');
+    if (r === 'ok') { await wipeBooking(ms); throw new Error('accepted: Dana got a 2nd turn tomorrow by writing day "2099-01-01"'); }
+    assert(r === 'permission-denied', 'result: ' + r);
+  });
+  await check("Avi can't edit Dana's details or read her reminder setting", async () => {
+    assert((await raw(B, `await db.doc('members/'+arg).set({name:'x',email:'x@x.x',phone:'050-0000000',joinedAt:1})`, A.uid)) === 'permission-denied', 'member edit allowed');
     assert((await raw(B, `await db.doc('prefs/'+arg).get()`, A.uid)) === 'permission-denied', 'prefs read allowed');
-    assert((await raw(B, `await db.collection('swaps').where('fromUid','==',arg).get()`, A.uid)) === 'permission-denied', 'swaps read allowed');
+  });
+  await check("Avi can't read swap requests between other people", async () => {
+    const r = await raw(B, `await db.collection('swaps').where('fromUid','==',arg).get()`, A.uid);
+    assert(r === 'permission-denied', 'all swap requests are readable by anyone signed in');
   });
   await check("a normal user can't mark the machine broken or pass the admin check", async () => {
     assert((await raw(B, `await db.doc('config/machine').set({broken:true})`)) === 'permission-denied', 'machine write allowed');
@@ -252,6 +283,27 @@ async function main() {
     assert(!(await getDoc(`daily/${W.uid}_${dayKey(r12)}`)), 'daily doc left behind');
     await showDay(L, r12);
     await eventually(async () => (await startOptions(L)).includes(String(r12)), '12:00 not free for the other user');
+  });
+  await check("the person asked to swap can't take the offered turn without giving theirs", async () => {
+    const d = (await db.collection('swaps').where('toUid', '==', W.uid).where('status', '==', 'pending').get()).docs[0];
+    const arg = Object.assign({ id: d.id, aDay: dayKey(l15) }, d.data());
+    const steal = `const s=arg, b=db.batch();
+      b.update(db.doc('bookings/'+s.fromBooking),{uid:s.toUid,swap:s.id});
+      b.set(db.doc('daily/'+s.toUid+'_'+s.aDay),{uid:s.toUid,day:s.aDay,booking:s.fromBooking});
+      if (s.markAccepted) b.update(db.doc('swaps/'+s.id),{status:'accepted',answeredAt:Date.now()});
+      await b.commit();`;
+    for (const markAccepted of [false, true]) {
+      const r = await raw(W, steal, Object.assign({ markAccepted }, arg));
+      if (r === 'ok') {
+        const FV = admin.firestore.FieldValue, b = db.batch();
+        b.update(db.doc('bookings/' + l15), { uid: A.uid, swap: FV.delete() });
+        b.delete(db.doc(`daily/${W.uid}_${arg.aDay}`));
+        b.update(db.doc('swaps/' + d.id), { status: 'pending', answeredAt: FV.delete() });
+        await b.commit();
+        throw new Error(`accepted${markAccepted ? ' (marking the request accepted)' : ''}: the winner took Dana's 15:00 and kept their own turn`);
+      }
+      assert(r === 'permission-denied', 'result: ' + r);
+    }
   });
   await check('now the same cross-day swap is accepted, and the daily docs move', async () => {
     assert(/Turns swapped/.test(await toastAfter(W.page, () => W.page.click('[data-act=swap-accept]'))), 'swap failed');
@@ -367,11 +419,19 @@ async function main() {
 
   console.log('\nHebrew view');
   await check('a Hebrew-language user sees everyone else live, right-to-left', async () => {
-    const H = await openUser('Hebrew', { locale: 'he-IL' });
+    const H = await openUser('Hebrew', { locale: 'he-IL', emailReminders: false });
     await showDay(H, a10);
     await eventually(async () => { const t = await H.page.textContent('#daylist'); return t.includes('Dana') && t.includes(L.name); }, 'bookings not shown');
     assert((await H.page.getAttribute('html', 'dir')) === 'rtl', 'not RTL');
     await shot(H, '5-hebrew-guest');
+  });
+  await check('with email reminders switched off (as live), the sign-up form has no email-reminder option', async () => {
+    const H = await openUser('Off', { emailReminders: false });
+    await H.page.waitForSelector('#reg-form');
+    assert(!(await H.page.$('#reg-remind')), 'reminder checkbox shown');
+    await register(H, 'Off', '050-444-4444', 'off@example.com');
+    assert(!(await H.page.$('[data-act=remind]')), 'reminder button shown');
+    assert(!(await getDoc('prefs/' + H.uid)), 'prefs written');
   });
 
   await check('no JavaScript errors in any browser', async () => { assert(pageErrors.length === 0, pageErrors.join(' | ')); });

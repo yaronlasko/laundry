@@ -4,7 +4,16 @@ A booking queue for one shared washing machine: 45-minute turns, one turn per pe
 swaps between neighbours, and an admin panel. Hebrew and English. The whole app is `index.html`,
 using Firebase (sign-in and the Firestore database).
 
-## Email reminders
+## Reminders
+
+**Calendar reminders (in use, free):** right after booking, a card offers to add the turn to the phone's calendar.
+"Apple / other calendar" downloads a file with two alarms (10 minutes before the wash, and when it's time to take the
+clothes out); the Google buttons open Google Calendar. The same buttons stay on each turn under "My turns".
+
+## Email reminders (switched off)
+
+Not in use: they need the Firebase Blaze plan, which needs a credit card. In `index.html`, `EMAIL_REMINDERS` is false,
+so the option is hidden. To turn them on later, do the setup below and set it to `true`.
 
 Members can turn on email reminders (at sign-up, or with the on/off button under their details).
 They get two emails per turn:
@@ -26,19 +35,9 @@ A scheduled Firebase function (`functions/`) checks every 5 minutes and sends th
    https://myaccount.google.com/apppasswords, create a password named "laundry", and copy the 16 characters.
    (A separate Gmail account just for the building works well.)
 
-3. **Update the Firestore rules.** Firebase console → Firestore Database → Rules. Add these two blocks
-   inside `match /databases/{database}/documents { ... }`, next to your existing rules, then Publish:
-
-   ```
-   // Each member's reminder setting. Only they can read or change it.
-   match /prefs/{uid} {
-     allow read, write: if request.auth != null && request.auth.uid == uid;
-   }
-   // "Already sent" markers, written only by the reminder function.
-   match /reminders/{id} {
-     allow read, write: if false;
-   }
-   ```
+3. **Update the Firestore rules.** Firebase console → Firestore Database → Rules. Replace everything with
+   `tests/multiuser/firestore.test.rules`, change `admin@example.com` to your own Gmail, then Publish.
+   (They include the `prefs` and `reminders` rules this needs.)
 
    Until this is done, the reminder checkbox and button stay hidden in the app.
 
@@ -68,5 +67,5 @@ cd tests/multiuser && npm install && npm test    # several users at once, agains
 ```
 
 The multi-user test runs the real app in separate browsers (sign-up, booking, two people grabbing the same slot,
-swaps, cancelling, finishing early, admin tools, reminder emails, Hebrew view). It uses its own stand-in security
-rules (`tests/multiuser/firestore.test.rules`), not the ones in the Firebase console.
+swaps, cancelling, finishing early, admin tools, reminder emails, Hebrew view). It uses the security
+rules (`tests/multiuser/firestore.test.rules`): a copy of the published rules with a test admin email.
