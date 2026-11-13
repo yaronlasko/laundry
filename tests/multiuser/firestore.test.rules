@@ -49,14 +49,15 @@ service cloud.firestore {
     }
 
     // Sign-up details. Visible to everyone using the page (so people can call each other).
+    // The admin can edit anyone, and add neighbours who don't use the app (ids starting "manual_").
     match /members/{uid} {
       allow read: if signedIn();
-      allow create, update: if signedIn() && request.auth.uid == uid
+      allow create, update: if signedIn() && (request.auth.uid == uid || isAdmin())
         && request.resource.data.keys().hasOnly(['name', 'email', 'phone', 'joinedAt'])
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 60
         && request.resource.data.email is string && request.resource.data.email.size() <= 120
-        && request.resource.data.email.matches('^[^@ ]+@[^@ ]+[.][^@ ]+$')
+        && (request.resource.data.email == '' || request.resource.data.email.matches('^[^@ ]+@[^@ ]+[.][^@ ]+$'))
         && request.resource.data.phone is string
         && request.resource.data.phone.size() >= 9 && request.resource.data.phone.size() <= 25;
       allow delete: if signedIn() && (request.auth.uid == uid || isAdmin());
@@ -68,30 +69,35 @@ service cloud.firestore {
     match /bookings/{id} {
       allow read: if true;
 
-      allow create: if signedIn()
-        && exists(memberPath(request.auth.uid))
-        && machineOk()
-        && request.resource.data.keys().hasOnly(['uid', 'startMs', 'endMs', 'day', 'createdAt'])
-        && request.resource.data.uid == request.auth.uid
-        && request.resource.data.startMs is int
-        && id == string(request.resource.data.startMs)
-        && request.resource.data.startMs % 900000 == 0
-        && request.resource.data.endMs == request.resource.data.startMs + 2700000
-        && request.resource.data.startMs > request.time.toMillis() - 900000
-        && request.resource.data.startMs < request.time.toMillis() + 15 * 86400000
-        && request.resource.data.day is string
-        && request.resource.data.day.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
-        && isIsraelDay(request.resource.data.day, request.resource.data.startMs)
-        && getAfter(dailyPath(request.auth.uid + '_' + request.resource.data.day)).data.booking == id
-        && getAfter(tickPath(string(request.resource.data.startMs))).data.booking == id
-        && getAfter(tickPath(string(request.resource.data.startMs + 900000))).data.booking == id
-        && getAfter(tickPath(string(request.resource.data.startMs + 1800000))).data.booking == id;
+      // A turn is valid when it sits on the 15-minute grid, carries the Israel date of its start,
+      // and claims its owner's daily doc and its three ticks in the same write.
+      function claimsSlot(d) {
+        return d.keys().hasOnly(['uid', 'startMs', 'endMs', 'day', 'createdAt'])
+          && exists(memberPath(d.uid))
+          && d.startMs is int
+          && id == string(d.startMs)
+          && d.startMs % 900000 == 0
+          && d.endMs == d.startMs + 2700000
+          && d.startMs > request.time.toMillis() - 900000
+          && d.startMs < request.time.toMillis() + 15 * 86400000
+          && d.day is string
+          && d.day.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          && isIsraelDay(d.day, d.startMs)
+          && getAfter(dailyPath(d.uid + '_' + d.day)).data.booking == id
+          && getAfter(tickPath(string(d.startMs))).data.booking == id
+          && getAfter(tickPath(string(d.startMs + 900000))).data.booking == id
+          && getAfter(tickPath(string(d.startMs + 1800000))).data.booking == id;
+      }
+
+      // People book for themselves while the machine works; the admin can book for any member.
+      allow create: if signedIn() && claimsSlot(request.resource.data)
+        && ((request.resource.data.uid == request.auth.uid && machineOk()) || isAdmin());
 
       // "My laundry is out": the owner records when they finished, once.
       function isDone() {
         return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['doneAt'])
           && !('doneAt' in resource.data)
-          && resource.data.uid == request.auth.uid
+          && (resource.data.uid == request.auth.uid || isAdmin())
           && request.resource.data.doneAt is int
           && request.resource.data.doneAt >= resource.data.startMs
           && request.resource.data.doneAt <= resource.data.endMs;
@@ -114,7 +120,15 @@ service cloud.firestore {
           && getAfter(dailyPath(newUid + '_' + resource.data.day)).data.booking == id;
       }
 
-      allow update: if signedIn() && (isDone() || isSwap());
+      // Admin gives a future turn to someone else (same start time, so same id).
+      // Moving a turn to another time is a delete plus a create.
+      function isAdminEdit() {
+        return isAdmin() && !('doneAt' in resource.data)
+          && resource.data.startMs > request.time.toMillis()
+          && claimsSlot(request.resource.data);
+      }
+
+      allow update: if signedIn() && (isDone() || isSwap() || isAdminEdit());
       allow delete: if signedIn() && (resource.data.uid == request.auth.uid || isAdmin());
     }
 
@@ -124,7 +138,7 @@ service cloud.firestore {
 
       function tickOwnedByNewBooking(b) {
         let bk = getAfter(bookingPath(b));
-        return bk.data.uid == request.auth.uid
+        return (bk.data.uid == request.auth.uid || isAdmin())
           && (int(t) == bk.data.startMs
             || int(t) == bk.data.startMs + 900000
             || int(t) == bk.data.startMs + 1800000);
@@ -137,6 +151,12 @@ service cloud.firestore {
       allow create: if signedIn()
         && request.resource.data.keys().hasOnly(['booking'])
         && tickOwnedByNewBooking(request.resource.data.booking);
+      // Admin moving a turn: a tick passes to the new turn only if its old turn is gone (or is the same turn).
+      allow update: if isAdmin()
+        && request.resource.data.keys().hasOnly(['booking'])
+        && tickOwnedByNewBooking(request.resource.data.booking)
+        && (resource.data.booking == request.resource.data.booking
+          || !existsAfter(bookingPath(resource.data.booking)));
       allow delete: if signedIn() && (resource == null
         || isAdmin()
         || !existsAfter(bookingPath(resource.data.booking))
