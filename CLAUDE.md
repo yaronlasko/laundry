@@ -4,7 +4,8 @@ Laundry Queue: a booking app for one shared washing machine in a building. Hebre
 
 ## Working with the owner
 - The owner mostly works from a phone and isn't a developer. For anything done in Firebase, Google Cloud or GitHub, give short step-by-step instructions (which page, which button). Screenshots are a normal way for them to show where they are.
-- `main` is production. Work on a branch, then open a PR and merge it only when the owner asks.
+- `main` is production. Work on a branch, open a PR, and merge it when the owner asks.
+- Standing permission from the owner: for a feature or fix they **specifically asked for**, once the multi-user test (and `functions` tests, if touched) pass, merge it to `main` without waiting to be asked. Anything they didn't ask for (your own ideas, refactors, optional extras) still waits for their go-ahead. Security-rule changes still need the owner to paste and Publish them, so tell them.
 
 ## Layout
 | Path | What it is |
