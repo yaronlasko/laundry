@@ -6,7 +6,7 @@ members including neighbours without the app, and 30-day history). Hebrew and En
 using Firebase (sign-in and the Firestore database).
 
 Neighbours just open the page; their sign-up is kept on their phone (anonymous Firebase sign-in).
-The admin opens `https://yaronlasko.github.io/laundry/?admin` and signs in with Google to get the admin panel.
+The admin opens the ☰ menu → "Admin sign-in" and signs in with Google to get the admin panel.
 
 ## Reminders
 

@@ -24,7 +24,7 @@ The page is served statically, presumably via GitHub Pages at `https://yaronlask
 - The `.ics` on iOS opens via a `data:` URL. This can't be tested here, so ask the owner to confirm on their iPhone if it changes.
 
 ## Admin panel
-- **Google sign-in is only for the admin.** Regular users stay on anonymous auth and never see a Google button. The button (and an "Admin: sign in…" hint) shows only on the admin link `https://yaronlasko.github.io/laundry/?admin` (`ADMIN_LINK`, also `#admin`). Once signed in with Google, the account line and Sign out show normally.
+- **Google sign-in is only for the admin.** Regular users stay on anonymous auth. Sign-in lives in the ☰ side menu (`renderMenu`, `setMenu`): "Admin sign-in" while anonymous; after Google sign-in it shows the email, "Admin panel" (admin only) and Sign out. There is no account block on the page. The owner rejected a separate admin link (`?admin`), so keep everything on the one URL.
 - Shown at the bottom for the admin, with a header shortcut (`#admin-link`). Tabs in `S.adminTab`: **schedule** (upcoming turns by day, filter `S.adminFilter`, editor `S.adminEdit` = the id of the future turn being edited, form state `S.admForm`), **members** (edit details, remove; `S.memberEdit`) and **history** (last 30 days, loaded on demand into `S.history`).
 - There is deliberately **no "Book for someone"** and **no "Add a neighbour without the app"**: the owner asked for both to be removed. The admin can only move or reassign existing turns.
 - `adminSaveBooking` moves or reassigns a turn in one batch, writing each doc at most once (a `Map` of path → data or `null` for delete). Moving a turn = delete the old turn + create the new one; reassigning at the same time = set the same booking id.
