@@ -1,0 +1,811 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#16708a">
+<title>תור כביסה · Laundry Queue</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&family=Assistant:wght@400;600;700&display=swap">
+<style>
+/* Layout: one calm column — live machine dial on top, my turns, then the day timeline and booking form; admin tools last. */
+:root{
+  --bg:#edf2f3; --surface:#ffffff; --surface-2:#f5f8f9; --ink:#13242b; --muted:#56696f; --line:#d4dfe2;
+  --accent:#16708a; --accent-ink:#ffffff; --accent-soft:#d8ecf1;
+  --mine:#c45d1c; --mine-soft:#fbe6d6;
+  --ok:#2a7849; --ok-soft:#dbeee2; --warn:#b03f10; --warn-soft:#fae1d4;
+  --track:#dfe8eb;
+  --font-display:"Rubik", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-body:"Assistant", "Rubik", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --r:12px; color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0d1619; --surface:#142126; --surface-2:#18282e; --ink:#e3edef; --muted:#93a7ad; --line:#24373d;
+    --accent:#5ab3cb; --accent-ink:#06222a; --accent-soft:#163742;
+    --mine:#f0965a; --mine-soft:#3b2619;
+    --ok:#62c08a; --ok-soft:#173327; --warn:#f08a5d; --warn-soft:#3c2218;
+    --track:#22353b; color-scheme:dark;
+  }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.45;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+[hidden]{display:none!important}
+.wrap{max-width:760px;margin:0 auto;padding-block:20px 64px;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));display:flex;flex-direction:column;gap:20px}
+h1,h2,h3{font-family:var(--font-display);text-wrap:balance;margin:0}
+h1{font-size:1.75rem;font-weight:700;letter-spacing:-.01em}
+h2{font-size:1.2rem;font-weight:600}
+h3{font-size:1rem;font-weight:600}
+p{margin:0}
+.muted{color:var(--muted)}
+.small{font-size:.88rem}
+.num{font-variant-numeric:tabular-nums}
+.top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.sub{color:var(--muted);margin-top:2px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px}
+section{display:flex;flex-direction:column;gap:12px}
+section:empty{display:none}
+
+button,.btn{font:600 .92rem var(--font-body);border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:7px 14px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px;line-height:1.2;white-space:nowrap}
+button:hover,.btn:hover{border-color:var(--accent)}
+button:focus-visible,.btn:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+button.danger{color:var(--warn);border-color:var(--warn)}
+button.danger.solid{background:var(--warn);color:var(--surface)}
+button:disabled,select:disabled{opacity:.5;cursor:not-allowed}
+.lang{font-family:var(--font-display);font-weight:500}
+
+input,select{font:inherit;color:var(--ink);background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:9px 12px;min-width:0}
+label{font-weight:600;font-size:.9rem}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+
+.notice{border-radius:var(--r);padding:12px 14px;background:var(--accent-soft);color:var(--ink)}
+.notice.warn{background:var(--warn-soft);color:var(--ink);border:1px solid var(--warn)}
+#notice{display:flex;flex-direction:column;gap:10px}
+#notice:empty{display:none}
+
+/* status dial */
+.status{display:grid;grid-template-columns:132px 1fr;gap:18px;align-items:center}
+.dial{position:relative;width:132px;height:132px}
+.dial svg{width:100%;height:100%;display:block}
+.dial .center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.dial .big{font:700 2rem/1 var(--font-display);font-variant-numeric:tabular-nums}
+.dial .unit{font-size:.8rem;color:var(--muted)}
+.dial .state{font:600 .95rem var(--font-display);color:var(--ok)}
+.status-text{display:flex;flex-direction:column;gap:6px;min-width:0}
+.status-text .head{font:600 1.25rem var(--font-display)}
+.status-text .head.busy{color:var(--accent)}
+.status-text .head.pick{color:var(--mine)}
+.status-text .head.free{color:var(--ok)}
+.person{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;background:var(--surface-2);border-radius:10px;padding:8px 10px}
+.phone{font-variant-numeric:tabular-nums;user-select:all;font-weight:600;direction:ltr;unicode-bidi:isolate}
+.mini{padding:4px 10px;font-size:.82rem}
+
+/* days */
+.days{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:thin}
+.day{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;border-radius:12px;padding:8px 12px;min-width:64px;position:relative}
+.day .d1{font:600 .85rem var(--font-display)}
+.day .d2{font-size:.8rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.day[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.day[aria-pressed="true"] .d2{color:var(--accent-ink)}
+.day .dot{position:absolute;top:6px;inset-inline-end:6px;width:7px;height:7px;border-radius:50%;background:var(--mine)}
+
+/* timeline */
+.tl{position:relative;height:34px;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.tl .blk{position:absolute;top:0;bottom:0;background:var(--accent);opacity:.85}
+.tl .blk.mine{background:var(--mine);opacity:1}
+.tl .grid{position:absolute;top:0;bottom:0;width:1px;background:var(--line)}
+.tl .nowm{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--ink)}
+.ticks{position:relative;height:18px;font-size:.75rem;color:var(--muted);font-variant-numeric:tabular-nums;margin-top:4px}
+.ticks span{position:absolute;top:0;transform:translateX(-50%)}
+[dir="rtl"] .ticks span{transform:translateX(50%)}
+.ticks span.first{transform:none}
+.ticks span.last{transform:none;inset-inline-start:auto!important;inset-inline-end:0}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:.82rem;color:var(--muted)}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin-inline-end:5px}
+
+/* booking form */
+.book{display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px}
+.book .preview{flex:1 1 200px;color:var(--muted);font-size:.9rem;min-width:0}
+
+/* rows */
+.list{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);overflow:hidden}
+.row{display:grid;grid-template-columns:118px 1fr auto;gap:10px;align-items:center;padding:10px 14px;border-top:1px solid var(--line)}
+.row:first-child{border-top:0}
+.row .when{font:600 .95rem var(--font-display);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:isolate;text-align:start}
+.row .who{min-width:0;display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center}
+.row .acts{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
+.row.gap{background:var(--ok-soft)}
+.row.gap .who{color:var(--ok);font-weight:600}
+.row.mine{background:var(--mine-soft)}
+.row.past{opacity:.55}
+.row .panel{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--surface-2);border-radius:10px;padding:10px}
+.empty{padding:16px 14px;color:var(--muted)}
+.pill{font:600 .75rem var(--font-body);letter-spacing:.04em;text-transform:uppercase;border-radius:999px;padding:2px 8px;background:var(--accent-soft);color:var(--accent)}
+.pill.mine{background:var(--mine-soft);color:var(--mine)}
+.pill.ok{background:var(--ok-soft);color:var(--ok)}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}
+
+/* my turns */
+.turn{display:flex;flex-direction:column;gap:8px;padding:14px;border-radius:var(--r);background:var(--surface);border:1px solid var(--line);border-inline-start:4px solid var(--mine)}
+.turn-head{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.turn-head strong{font:600 1.05rem var(--font-display);font-variant-numeric:tabular-nums}
+.acts-wrap{display:flex;flex-wrap:wrap;gap:8px}
+.swap{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;padding:12px 14px;border-radius:var(--r);background:var(--surface);border:1px solid var(--line)}
+.swap p{flex:1 1 240px;min-width:0}
+
+/* register */
+.reg-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.reg-summary{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:space-between}
+
+/* account + admin */
+.account{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:space-between;font-size:.9rem;color:var(--muted);border-top:1px solid var(--line);padding-top:16px}
+.account p{flex:1 1 260px;min-width:0}
+.admin{border:1px dashed var(--accent)}
+.member{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
+.member:first-of-type{border-top:0}
+.member .info{min-width:0;display:flex;flex-direction:column;gap:2px}
+.member .info span{overflow-wrap:anywhere}
+
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom, 0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:999px;font-weight:600;max-width:calc(100% - 32px);text-align:center;opacity:0;pointer-events:none;transition:opacity .2s;z-index:20}
+#toast.show{opacity:1}
+@media (prefers-reduced-motion: reduce){#toast{transition:none}}
+
+@media (max-width:560px){
+  .status{grid-template-columns:1fr;justify-items:center;text-align:center}
+  .status-text{align-items:center}
+  .reg-grid{grid-template-columns:1fr}
+  .row{grid-template-columns:1fr auto}
+  .row .who{grid-column:1/-1;grid-row:2}
+  .row .acts{grid-row:1;grid-column:2}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1 data-i18n="title">תור כביסה</h1>
+      <p class="sub" data-i18n="subtitle">מכונה אחת · תורים של 45 דקות · תור אחד לאדם ביום</p>
+    </div>
+    <button id="lang-btn" class="lang" data-act="lang" type="button">English</button>
+  </header>
+
+  <div id="notice"></div>
+  <section id="status" class="card status" aria-live="polite"></section>
+  <section id="register"></section>
+  <section id="mine"></section>
+
+  <section class="schedule">
+    <h2 data-i18n="bookTitle">הזמנת תור</h2>
+    <div id="days" class="days" role="group"></div>
+    <div>
+      <div id="timeline"></div>
+      <div class="legend">
+        <span><i style="background:var(--mine)"></i><span data-i18n="legendMine"></span></span>
+        <span><i style="background:var(--accent)"></i><span data-i18n="legendTaken"></span></span>
+        <span><i style="background:var(--ok-soft);border:1px solid var(--ok)"></i><span data-i18n="legendFree"></span></span>
+      </div>
+    </div>
+    <form id="book-form" class="book card">
+      <div class="field">
+        <label for="start-time" data-i18n="startLabel"></label>
+        <select id="start-time"></select>
+      </div>
+      <p id="book-preview" class="preview num"></p>
+      <button id="book-btn" class="primary" type="submit" data-i18n="bookBtn"></button>
+    </form>
+    <div id="daylist"></div>
+  </section>
+
+  <section id="admin"></section>
+  <div id="account"></div>
+</div>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+window.FIREBASE_CONFIG = {
+  apiKey: "AIzaSyCootuxkYZVICt4_WGlQzqN28fsTfAEnhs",
+  authDomain: "laundry-schedule-fa89a.firebaseapp.com",
+  projectId: "laundry-schedule-fa89a",
+  storageBucket: "laundry-schedule-fa89a.firebasestorage.app",
+  messagingSenderId: "576564577775",
+  appId: "1:576564577775:web:af1d701259b3cc50aca21a"
+};
+</script>
+<script>
+(function(){
+const SLOT = 45*60000, WASH = 40*60000, TICK = 15*60000, DAYS = 14, H = 3600000;
+
+const T = {
+en:{
+  title:"Laundry Queue", subtitle:"One machine · 45-minute turns · 1 turn per person per day", langBtn:"עברית",
+  statusFree:"Machine is free", freeUntil:"Free until {t}", freeRest:"No more turns booked today",
+  washing:"Washing", pickup:"Time to take clothes out", turnOf:"{name}'s turn",
+  washEnds:"Wash ends {t}", pickupBy:"Clothes out by {t}", minWash:"min washing", minPick:"min to empty",
+  next:"Next: {name} at {t}", prev:"Last turn: {name}, ended {t}", prevHint:"Laundry still inside? Call:",
+  outOfOrder:"The machine is marked out of order. Booking is paused.",
+  call:"Call", copy:"Copy", copied:"Copied",
+  regTitle:"Sign up to book", regIntro:"Your phone number is shown to the other neighbours, so they can reach you if your laundry is still in the machine.",
+  name:"Name", email:"Email", phone:"Phone number", signup:"Sign up", save:"Save", cancelEdit:"Cancel",
+  regAs:"Signed up as {name}", edit:"Edit details",
+  myTitle:"My turns", myNone:"You have no upcoming turns. Pick a free time below.",
+  gWash:"Google: wash", gPickup:"Google: pickup", apple:"Apple / other calendar",
+  appleHint:"Apple / other calendar adds two reminders: 10 minutes before your wash, and when it's time to take your clothes out.",
+  done:"My laundry is out", cancel:"Cancel turn", confirmCancel:"Yes, cancel", keep:"Keep",
+  nowPill:"Now", swapsTitle:"Swap requests",
+  swapIn:"{name} wants to swap: their {a} for your {b}", swapOut:"You asked {name}: your {a} for their {b}",
+  accept:"Accept", decline:"Decline", dismiss:"Dismiss", pending:"Waiting", accepted:"Accepted", declined:"Declined", stale:"No longer valid",
+  bookTitle:"Book a turn", today:"Today", tomorrow:"Tomorrow",
+  free:"Free", bookAt:"Book {t}", startLabel:"Start time", bookBtn:"Book 45 minutes",
+  preview:"Wash {a}–{b} · clothes out by {c}", you:"You", noStarts:"No free times",
+  askSwap:"Ask to swap", offerMine:"Offer my turn:", send:"Send request", close:"Close",
+  noFree:"No free time left on this day.",
+  errTaken:"Someone just took that time. Pick another one.", errDaily:"You already have a turn on this day. One turn per day.",
+  errPast:"That time has already passed.", errReg:"Sign up first to book a turn.",
+  errGeneric:"Couldn't save. Check your connection and try again.", errOOO:"The machine is out of order. Booking is paused.",
+  errSwapDay:"This swap would give someone two turns on one day.", errSwapGone:"One of these turns changed, so the request is no longer valid.",
+  errTime:"Choose a start time.", errName:"Enter your name.", errEmail:"Enter a valid email address.", errPhone:"Enter a valid phone number.",
+  errSwapDup:"You already sent this request.", errDenied:"That change isn't allowed.",
+  booked:"Booked {t}", cancelled:"Turn cancelled", saved:"Details saved", sent:"Request sent", swapped:"Turns swapped", doneMsg:"Thanks, the machine is free",
+  adminTitle:"Admin", adminBadge:"Admin", machineOk:"The machine is working.", machineBroken:"The machine is marked out of order.",
+  markBroken:"Mark out of order", markOk:"Mark as working",
+  members:"Members ({n})", noMembers:"No one has signed up yet.",
+  remove:"Remove", confirmRemove:"Yes, remove", removed:"Member removed",
+  removeHint:"Removing deletes their details and future turns. They can sign up again from the link.",
+  upcoming:"{n} upcoming", adminCancel:"Cancel",
+  loading:"Loading the schedule…", unreachable:"Can't reach the schedule right now. It will update when the connection is back.",
+  setup:"Setup isn't finished: paste your Firebase settings into firebase-config.js.",
+  authFail:"Couldn't start a session. In Firebase, turn on Anonymous sign-in (Authentication → Sign-in method).",
+  legendMine:"Your turn", legendTaken:"Taken", legendFree:"Free", neighbour:"Neighbour",
+  calWash:"Laundry: start washing", calPick:"Laundry: take clothes out",
+  calDetails:"Your laundry turn: {a}–{b}. Take your clothes out by {b} so the next person can start.",
+  accAnon:"Your sign-up is saved on this phone. To use the same turns on another device, sign in with Google.",
+  accGoogle:"Signed in as {email}.", google:"Sign in with Google", signOut:"Sign out"
+},
+he:{
+  title:"תור כביסה", subtitle:"מכונה אחת · תורים של 45 דקות · תור אחד לאדם ביום", langBtn:"English",
+  statusFree:"המכונה פנויה", freeUntil:"פנויה עד {t}", freeRest:"אין עוד תורים היום",
+  washing:"בכביסה", pickup:"זמן להוציא את הבגדים", turnOf:"התור של {name}",
+  washEnds:"הכביסה מסתיימת ב-{t}", pickupBy:"להוציא את הבגדים עד {t}", minWash:"דק׳ כביסה", minPick:"דק׳ לפינוי",
+  next:"הבא בתור: {name} ב-{t}", prev:"התור הקודם: {name}, הסתיים ב-{t}", prevHint:"נשארה כביסה במכונה? אפשר להתקשר:",
+  outOfOrder:"המכונה מסומנת כמקולקלת. הזמנת תורים מושהית.",
+  call:"התקשרות", copy:"העתקה", copied:"הועתק",
+  regTitle:"הרשמה להזמנת תורים", regIntro:"מספר הטלפון שלך יוצג לשכנים, כדי שיוכלו לפנות אליך אם הכביסה שלך נשארה במכונה.",
+  name:"שם", email:"אימייל", phone:"מספר טלפון", signup:"הרשמה", save:"שמירה", cancelEdit:"ביטול",
+  regAs:"רשום/ה בשם {name}", edit:"עריכת פרטים",
+  myTitle:"התורים שלי", myNone:"אין לך תורים קרובים. אפשר לבחור זמן פנוי למטה.",
+  gWash:"גוגל: כביסה", gPickup:"גוגל: איסוף", apple:"יומן אפל / אחר",
+  appleHint:"״יומן אפל / אחר״ מוסיף שתי תזכורות: 10 דקות לפני הכביסה, וכשהגיע הזמן להוציא את הבגדים.",
+  done:"הוצאתי את הכביסה", cancel:"ביטול התור", confirmCancel:"כן, לבטל", keep:"להשאיר",
+  nowPill:"עכשיו", swapsTitle:"בקשות החלפה",
+  swapIn:"{name} מבקש/ת להחליף: התור שלו/ה {a} תמורת התור שלך {b}", swapOut:"ביקשת מ-{name}: התור שלך {a} תמורת התור שלו/ה {b}",
+  accept:"אישור", decline:"דחייה", dismiss:"הסתרה", pending:"ממתין", accepted:"אושר", declined:"נדחה", stale:"כבר לא בתוקף",
+  bookTitle:"הזמנת תור", today:"היום", tomorrow:"מחר",
+  free:"פנוי", bookAt:"להזמין ל-{t}", startLabel:"שעת התחלה", bookBtn:"הזמנת 45 דקות",
+  preview:"כביסה {a}–{b} · להוציא עד {c}", you:"אני", noStarts:"אין שעות פנויות",
+  askSwap:"בקשת החלפה", offerMine:"להציע את התור שלי:", send:"שליחת בקשה", close:"סגירה",
+  noFree:"אין זמן פנוי ביום הזה.",
+  errTaken:"מישהו תפס את השעה הזו הרגע. בחר/י שעה אחרת.", errDaily:"כבר יש לך תור ביום הזה. תור אחד ביום.",
+  errPast:"השעה הזו כבר עברה.", errReg:"יש להירשם לפני הזמנת תור.",
+  errGeneric:"השמירה נכשלה. בדוק/י את החיבור ונסה/י שוב.", errOOO:"המכונה מקולקלת. הזמנת תורים מושהית.",
+  errSwapDay:"ההחלפה הזו תיתן למישהו שני תורים באותו יום.", errSwapGone:"אחד התורים השתנה, ולכן הבקשה כבר לא בתוקף.",
+  errTime:"יש לבחור שעת התחלה.", errName:"יש להזין שם.", errEmail:"יש להזין כתובת אימייל תקינה.", errPhone:"יש להזין מספר טלפון תקין.",
+  errSwapDup:"כבר שלחת את הבקשה הזו.", errDenied:"השינוי הזה לא מותר.",
+  booked:"התור נקבע ל-{t}", cancelled:"התור בוטל", saved:"הפרטים נשמרו", sent:"הבקשה נשלחה", swapped:"התורים הוחלפו", doneMsg:"תודה, המכונה פנויה",
+  adminTitle:"ניהול", adminBadge:"מנהל", machineOk:"המכונה תקינה.", machineBroken:"המכונה מסומנת כמקולקלת.",
+  markBroken:"סימון כמקולקלת", markOk:"סימון כתקינה",
+  members:"רשומים ({n})", noMembers:"עוד אף אחד לא נרשם.",
+  remove:"הסרה", confirmRemove:"כן, להסיר", removed:"הרשום הוסר",
+  removeHint:"הסרה מוחקת את הפרטים ואת התורים העתידיים. אפשר להירשם מחדש דרך הקישור.",
+  upcoming:"{n} תורים קרובים", adminCancel:"ביטול",
+  loading:"טוען את הלוח…", unreachable:"אין חיבור ללוח כרגע. הוא יתעדכן כשהחיבור יחזור.",
+  setup:"ההתקנה לא הושלמה: יש להדביק את הגדרות Firebase בקובץ firebase-config.js.",
+  authFail:"לא ניתן להתחבר. ב-Firebase יש להפעיל כניסה אנונימית (Authentication ← Sign-in method).",
+  legendMine:"התור שלי", legendTaken:"תפוס", legendFree:"פנוי", neighbour:"שכן/ה",
+  calWash:"כביסה: להפעיל את המכונה", calPick:"כביסה: להוציא את הבגדים",
+  calDetails:"תור הכביסה שלך: {a}–{b}. יש להוציא את הבגדים עד {b} כדי שהבא בתור יוכל להתחיל.",
+  accAnon:"ההרשמה שלך שמורה בטלפון הזה. כדי להשתמש באותם תורים במכשיר נוסף, אפשר להתחבר עם גוגל.",
+  accGoogle:"מחובר/ת בתור {email}.", google:"כניסה עם גוגל", signOut:"התנתקות"
+}};
+
+let L = (function(){ try{ const s=localStorage.getItem('lq-lang'); if(s==='he'||s==='en') return s; }catch(e){} return (navigator.language||'').toLowerCase().startsWith('en')?'en':'he'; })();
+function t(k,v){ let s=(T[L][k]!=null?T[L][k]:(T.en[k]!=null?T.en[k]:k)); if(v) for(const n in v) s=s.split('{'+n+'}').join(v[n]); return s; }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+const pad = n => String(n).padStart(2,'0');
+const $ = id => document.getElementById(id);
+
+const S = { uid:null, isAnon:true, email:'', isAdmin:false, members:{}, bookings:[], swapsFrom:[], swapsTo:[], machine:{broken:false},
+  loadedB:false, ready:false, unreachable:false, setup:false, authFail:false, day:null, swapTarget:null, confirm:null, editing:false, busy:false };
+let db=null, auth=null, unsubs=[];
+
+function locale(){ return L==='he'?'he-IL':'en-GB'; }
+function dayKey(ms){ const d=new Date(ms); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+function dayStart(k){ const [y,m,d]=k.split('-').map(Number); return new Date(y,m-1,d).getTime(); }
+function dayEnd(k){ const [y,m,d]=k.split('-').map(Number); return new Date(y,m-1,d+1).getTime(); }
+function fmtTime(ms){ return new Intl.DateTimeFormat(locale(),{hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(ms); }
+function dayLabel(k){ const now=Date.now(); if(k===dayKey(now)) return t('today'); const tm=new Date(now); tm.setDate(tm.getDate()+1); if(k===dayKey(tm.getTime())) return t('tomorrow');
+  return new Intl.DateTimeFormat(locale(),{weekday:'short',day:'numeric',month:'numeric'}).format(dayStart(k)); }
+function fmtWhen(ms){ return dayLabel(dayKey(ms))+' '+fmtTime(ms); }
+function ceilTick(ms){ return Math.ceil(ms/TICK)*TICK; }
+// Machine time a turn still holds: the full 45 minutes, or up to the 15-minute block in which "laundry is out" was pressed.
+function effEnd(b){ return (typeof b.doneAt==='number') ? Math.min(b.endMs, Math.max(b.startMs, ceilTick(b.doneAt))) : b.endMs; }
+function dayKeys(){ const out=[]; const d=new Date(); for(let i=0;i<DAYS;i++){ const x=new Date(d.getFullYear(),d.getMonth(),d.getDate()+i); out.push(dayKey(x.getTime())); } return out; }
+function memberName(uid){ if(uid===S.uid) return t('you'); const m=S.members[uid]; return (m&&m.name)||t('neighbour'); }
+function registered(){ return !!(S.uid && S.members[S.uid]); }
+function myFuture(){ const now=Date.now(); return S.bookings.filter(b=>b.uid===S.uid && b.startMs>now).sort((a,b)=>a.startMs-b.startMs); }
+function allSwaps(){ const m=new Map(); for(const s of S.swapsFrom.concat(S.swapsTo)) m.set(s.id,s); return [...m.values()]; }
+function isFree(s){ const e=s+SLOT; return !S.bookings.some(b=>b.startMs<e && effEnd(b)>s); }
+function freeStarts(k){ const ds=dayStart(k), de=dayEnd(k), now=Date.now(), out=[]; for(let s=ds; s<de; s+=TICK){ if(s<=now-10*60000) continue; if(isFree(s)) out.push(s); } return out; }
+
+function setHTML(el, html){
+  if(el._last===html) return;
+  const saved={}; el.querySelectorAll('input,select').forEach(i=>{ if(i.id) saved[i.id]=i.value; });
+  const f=document.activeElement && el.contains(document.activeElement) ? document.activeElement.id : null;
+  el.innerHTML=html; el._last=html;
+  for(const id in saved){ const n=el.querySelector('#'+CSS.escape(id)); if(n) n.value=saved[id]; }
+  if(f){ const n=el.querySelector('#'+CSS.escape(f)); if(n) n.focus(); }
+}
+let toastTimer;
+function toast(msg){ const el=$('toast'); el.textContent=msg; el.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove('show'),3400); }
+
+function phoneBlock(uid){
+  const m=S.members[uid]; if(!m||!m.phone||uid===S.uid) return '';
+  const tel=m.phone.replace(/[^\d+]/g,'');
+  return `<span class="phone">${esc(m.phone)}</span><a class="btn mini" href="tel:${esc(tel)}">${t('call')}</a><button type="button" class="mini" data-act="copy" data-text="${esc(m.phone)}">${t('copy')}</button>`;
+}
+
+/* ---------- status ---------- */
+function dialSVG(e){
+  const w=Math.min(e,40), p=Math.max(0,e-40);
+  return `<svg viewBox="0 0 120 120" aria-hidden="true"><g transform="rotate(-90 60 60)" fill="none" stroke-width="12">
+    <circle cx="60" cy="60" r="50" pathLength="45" stroke="var(--track)" stroke-dasharray="40 5"></circle>
+    <circle cx="60" cy="60" r="50" pathLength="45" stroke="var(--mine-soft)" stroke-dasharray="5 40" stroke-dashoffset="-40"></circle>
+    ${w>0?`<circle cx="60" cy="60" r="50" pathLength="45" stroke="var(--accent)" stroke-dasharray="${w.toFixed(2)} 45"></circle>`:''}
+    ${p>0?`<circle cx="60" cy="60" r="50" pathLength="45" stroke="var(--mine)" stroke-dasharray="${p.toFixed(2)} 45" stroke-dashoffset="-40"></circle>`:''}
+  </g><circle cx="60" cy="60" r="38" fill="var(--surface-2)"></circle></svg>`;
+}
+function renderStatus(){
+  const el=$('status');
+  if(S.setup||S.authFail){ setHTML(el,''); return; }
+  if(!S.ready){ setHTML(el, `<div class="dial">${dialSVG(0)}<div class="center"><span class="unit">…</span></div></div><div class="status-text"><p class="head">${t('loading')}</p></div>`); return; }
+  const now=Date.now(), list=S.bookings;
+  const cur=list.find(b=>b.startMs<=now && now<effEnd(b));
+  const next=list.filter(b=>b.startMs>now).sort((a,b)=>a.startMs-b.startMs)[0];
+  const prev=list.filter(b=>effEnd(b)<=now && now-effEnd(b)<3*H).sort((a,b)=>effEnd(b)-effEnd(a))[0];
+  let dial, text;
+  if(cur){
+    const e=Math.min(45,(now-cur.startMs)/60000);
+    const washPhase = now < cur.startMs+WASH;
+    const left = washPhase ? Math.ceil((cur.startMs+WASH-now)/60000) : Math.ceil((cur.endMs-now)/60000);
+    dial=`<div class="dial">${dialSVG(e)}<div class="center"><span class="big">${left}</span><span class="unit">${washPhase?t('minWash'):t('minPick')}</span></div></div>`;
+    text=`<p class="head ${washPhase?'busy':'pick'}">${washPhase?t('washing'):t('pickup')}</p>
+      <p>${t('turnOf',{name:esc(memberName(cur.uid))})} · <span class="num" dir="ltr">${fmtTime(cur.startMs)}–${fmtTime(cur.endMs)}</span></p>
+      <p class="muted small">${washPhase?t('washEnds',{t:fmtTime(cur.startMs+WASH)})+' · ':''}${t('pickupBy',{t:fmtTime(cur.endMs)})}</p>
+      ${phoneBlock(cur.uid)?`<div class="person">${phoneBlock(cur.uid)}</div>`:''}`;
+  } else {
+    dial=`<div class="dial">${dialSVG(0)}<div class="center"><span class="state">${t('legendFree')}</span></div></div>`;
+    const until = next && dayKey(next.startMs)===dayKey(now) ? t('freeUntil',{t:fmtTime(next.startMs)}) : t('freeRest');
+    text=`<p class="head free">${t('statusFree')}</p><p class="muted">${until}</p>`;
+    if(prev){
+      text+=`<p class="small">${t('prev',{name:esc(memberName(prev.uid)),t:fmtTime(effEnd(prev))})}</p>`;
+      if(typeof prev.doneAt!=='number' && phoneBlock(prev.uid)) text+=`<div class="person"><span class="small muted">${t('prevHint')}</span>${phoneBlock(prev.uid)}</div>`;
+    }
+  }
+  if(next) text+=`<p class="small muted">${t('next',{name:esc(memberName(next.uid)),t:(dayKey(next.startMs)===dayKey(now)?fmtTime(next.startMs):fmtWhen(next.startMs))})}</p>`;
+  setHTML(el, dial+`<div class="status-text">${text}</div>`);
+}
+
+/* ---------- notice ---------- */
+function renderNotice(){
+  let h='';
+  if(S.setup) h=`<div class="notice warn">${t('setup')}</div>`;
+  else if(S.authFail) h=`<div class="notice warn">${t('authFail')}</div>`;
+  if(S.unreachable) h+=`<div class="notice warn">${t('unreachable')}</div>`;
+  if(S.machine && S.machine.broken) h+=`<div class="notice warn"><strong>${t('outOfOrder')}</strong></div>`;
+  setHTML($('notice'),h);
+}
+
+/* ---------- register ---------- */
+function renderRegister(){
+  const el=$('register');
+  if(!S.ready || !S.uid){ setHTML(el,''); return; }
+  const me=S.members[S.uid];
+  if(me && !S.editing){
+    setHTML(el, `<div class="card reg-summary"><p>${t('regAs',{name:`<strong>${esc(me.name)}</strong>`})} · <span class="phone">${esc(me.phone)}</span></p><button type="button" data-act="edit">${t('edit')}</button></div>`);
+    return;
+  }
+  const v = me || {name:'', email:S.email||'', phone:''};
+  setHTML(el, `<form id="reg-form" class="card" style="display:flex;flex-direction:column;gap:12px">
+    <h2>${me?t('edit'):t('regTitle')}</h2>
+    <p class="muted small">${t('regIntro')}</p>
+    <div class="reg-grid">
+      <div class="field"><label for="reg-name">${t('name')}</label><input id="reg-name" autocomplete="name" maxlength="60" value="${esc(v.name)}" required></div>
+      <div class="field"><label for="reg-email">${t('email')}</label><input id="reg-email" type="email" dir="ltr" autocomplete="email" maxlength="120" value="${esc(v.email)}" required></div>
+      <div class="field"><label for="reg-phone">${t('phone')}</label><input id="reg-phone" type="tel" dir="ltr" autocomplete="tel" maxlength="25" placeholder="050-123-4567" value="${esc(v.phone)}" required></div>
+    </div>
+    <div class="acts-wrap"><button class="primary" type="submit">${me?t('save'):t('signup')}</button>${me?`<button type="button" data-act="edit-cancel">${t('cancelEdit')}</button>`:''}</div>
+  </form>`);
+}
+
+/* ---------- my turns + swaps ---------- */
+function gcalUrl(title, a, b, details){
+  const f=ms=>new Date(ms).toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,'');
+  return 'https://calendar.google.com/calendar/render?action=TEMPLATE&text='+encodeURIComponent(title)+'&dates='+f(a)+'/'+f(b)+'&details='+encodeURIComponent(details);
+}
+function swapValid(sw){
+  const now=Date.now();
+  const a=S.bookings.find(b=>b.id===sw.fromBooking), b=S.bookings.find(x=>x.id===sw.toBooking);
+  return !!(a&&b&&a.uid===sw.fromUid&&b.uid===sw.toUid&&a.startMs>now&&b.startMs>now);
+}
+function renderMine(){
+  const el=$('mine');
+  if(!S.ready || !registered()){ setHTML(el,''); return; }
+  const now=Date.now();
+  const mine=S.bookings.filter(b=>b.uid===S.uid && effEnd(b)>now).sort((a,b)=>a.startMs-b.startMs);
+  let h=`<h2>${t('myTitle')}</h2>`;
+  if(!mine.length) h+=`<p class="muted">${t('myNone')}</p>`;
+  for(const b of mine){
+    const started=b.startMs<=now;
+    const det=t('calDetails',{a:fmtTime(b.startMs),b:fmtTime(b.endMs)});
+    const conf=S.confirm==='cancel:'+b.id;
+    h+=`<article class="turn">
+      <div class="turn-head"><strong>${esc(dayLabel(b.day))} · <span dir="ltr">${fmtTime(b.startMs)}–${fmtTime(b.endMs)}</span></strong>${started?`<span class="pill mine">${t('nowPill')}</span>`:''}</div>
+      <p class="muted small num">${t('preview',{a:fmtTime(b.startMs),b:fmtTime(b.startMs+WASH),c:fmtTime(b.endMs)})}</p>
+      <div class="acts-wrap">
+        <a class="btn" target="_blank" rel="noopener" href="${esc(gcalUrl(t('calWash'),b.startMs,b.startMs+WASH,det))}">${t('gWash')}</a>
+        <a class="btn" target="_blank" rel="noopener" href="${esc(gcalUrl(t('calPick'),b.startMs+WASH,b.endMs,det))}">${t('gPickup')}</a>
+        <button type="button" data-act="ics" data-id="${esc(b.id)}">${t('apple')}</button>
+        ${started?`<button type="button" class="primary" data-act="done" data-id="${esc(b.id)}">${t('done')}</button>`
+          : conf?`<button type="button" class="danger solid" data-act="cancel-yes" data-id="${esc(b.id)}">${t('confirmCancel')}</button><button type="button" data-act="keep">${t('keep')}</button>`
+          :`<button type="button" class="danger" data-act="cancel" data-id="${esc(b.id)}">${t('cancel')}</button>`}
+      </div>
+    </article>`;
+  }
+  if(mine.length) h+=`<p class="muted small">${t('appleHint')}</p>`;
+  const sw=allSwaps().sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  if(sw.length){
+    h+=`<h3>${t('swapsTitle')}</h3>`;
+    for(const s of sw){
+      const a=S.bookings.find(b=>b.id===s.fromBooking), b=S.bookings.find(x=>x.id===s.toBooking);
+      const aL=a?fmtWhen(a.startMs):'—', bL=b?fmtWhen(b.startMs):'—';
+      const valid=swapValid(s), incoming=s.toUid===S.uid;
+      const msg = incoming ? t('swapIn',{name:esc(memberName(s.fromUid)),a:esc(aL),b:esc(bL)}) : t('swapOut',{name:esc(memberName(s.toUid)),a:esc(aL),b:esc(bL)});
+      let acts='';
+      if(s.status==='pending' && valid){
+        acts = incoming ? `<button type="button" class="primary" data-act="swap-accept" data-id="${esc(s.id)}">${t('accept')}</button><button type="button" data-act="swap-decline" data-id="${esc(s.id)}">${t('decline')}</button>`
+                        : `<span class="pill">${t('pending')}</span><button type="button" data-act="swap-dismiss" data-id="${esc(s.id)}">${t('cancelEdit')}</button>`;
+      } else {
+        const st = s.status==='accepted'?`<span class="pill ok">${t('accepted')}</span>` : s.status==='declined'?`<span class="pill warn">${t('declined')}</span>` : `<span class="pill warn">${t('stale')}</span>`;
+        acts = st+`<button type="button" data-act="swap-dismiss" data-id="${esc(s.id)}">${t('dismiss')}</button>`;
+      }
+      h+=`<div class="swap"><p>${msg}</p><div class="acts-wrap">${acts}</div></div>`;
+    }
+  }
+  setHTML(el,h);
+}
+
+/* ---------- days / timeline / list / form ---------- */
+function renderDays(){
+  const keys=dayKeys(); if(!S.day || !keys.includes(S.day)) S.day=keys[0];
+  const mineDays=new Set(S.bookings.filter(b=>b.uid===S.uid).map(b=>b.day));
+  setHTML($('days'), keys.map((k,i)=>{
+    const d=new Date(dayStart(k));
+    const d2=new Intl.DateTimeFormat(locale(),{day:'numeric',month:'numeric'}).format(d);
+    const d1=i===0?t('today'):i===1?t('tomorrow'):new Intl.DateTimeFormat(locale(),{weekday:'short'}).format(d);
+    return `<button type="button" class="day" data-act="day" data-day="${k}" aria-pressed="${k===S.day}"><span class="d1">${esc(d1)}</span><span class="d2">${esc(d2)}</span>${mineDays.has(k)?'<span class="dot" aria-hidden="true"></span>':''}</button>`;
+  }).join(''));
+}
+function dayBookings(k){ const ds=dayStart(k), de=dayEnd(k); return S.bookings.filter(b=>b.startMs<de && effEnd(b)>ds).sort((a,b)=>a.startMs-b.startMs); }
+function freeGaps(k){
+  const ds=dayStart(k), de=dayEnd(k), starts=freeStarts(k), gaps=[];
+  // group consecutive free start times into windows [first start, last start + 45 min)
+  let g=null;
+  for(const s of starts){ if(g && s===g[2]+TICK){ g[2]=s; } else { if(g) gaps.push(g); g=[s,null,s]; } }
+  if(g) gaps.push(g);
+  return gaps.map(x=>[x[0], x[2]+SLOT]);
+}
+function renderTimeline(){
+  const k=S.day, ds=dayStart(k), de=dayEnd(k), span=de-ds, now=Date.now();
+  let h='<div class="tl">';
+  for(const hr of [6,12,18]) h+=`<span class="grid" style="inset-inline-start:${hr/24*100}%"></span>`;
+  for(const b of dayBookings(k)){
+    const l=(Math.max(b.startMs,ds)-ds)/span*100, w=(Math.min(effEnd(b),de)-Math.max(b.startMs,ds))/span*100;
+    h+=`<span class="blk${b.uid===S.uid?' mine':''}" style="inset-inline-start:${l.toFixed(3)}%;width:${Math.max(w,.4).toFixed(3)}%"></span>`;
+  }
+  if(now>=ds && now<de) h+=`<span class="nowm" style="inset-inline-start:${((now-ds)/span*100).toFixed(3)}%"></span>`;
+  h+='</div><div class="ticks">';
+  [0,6,12,18,24].forEach((hr,i)=>{ h+=`<span class="${i===0?'first':i===4?'last':''}" style="inset-inline-start:${hr/24*100}%">${pad(hr)}:00</span>`; });
+  h+='</div>';
+  setHTML($('timeline'),h);
+}
+function renderDayList(){
+  const el=$('daylist');
+  if(!S.ready || S.setup || S.authFail){ setHTML(el,''); return; }
+  const k=S.day, now=Date.now(), rows=[];
+  for(const b of dayBookings(k)) rows.push({t:b.startMs, b});
+  for(const g of freeGaps(k)) rows.push({t:g[0], g});
+  rows.sort((a,b)=>a.t-b.t);
+  const fut=myFuture();
+  let h='<div class="list">';
+  for(const r of rows){
+    if(r.g){
+      const [a,b]=r.g;
+      h+=`<div class="row gap"><div class="when">${fmtTime(a)}–${fmtTime(b)}</div><div class="who">${t('free')}</div>
+        <div class="acts"><button type="button" class="mini" data-act="pick" data-ms="${a}">${t('bookAt',{t:fmtTime(a)})}</button></div></div>`;
+      continue;
+    }
+    const b=r.b, mine=b.uid===S.uid, past=effEnd(b)<=now, future=b.startMs>now;
+    let acts='';
+    if(mine) acts=`<span class="pill mine">${t('legendMine')}</span>`;
+    else if(future){
+      if(registered() && fut.length) acts+=`<button type="button" class="mini" data-act="swap-open" data-id="${esc(b.id)}">${t('askSwap')}</button>`;
+      if(S.isAdmin) acts+= S.confirm==='admin:'+b.id
+        ? `<button type="button" class="mini danger solid" data-act="admin-cancel-yes" data-id="${esc(b.id)}">${t('confirmCancel')}</button><button type="button" class="mini" data-act="keep">${t('keep')}</button>`
+        : `<button type="button" class="mini danger" data-act="admin-cancel" data-id="${esc(b.id)}">${t('adminCancel')}</button>`;
+    }
+    h+=`<div class="row${mine?' mine':''}${past?' past':''}"><div class="when">${fmtTime(b.startMs)}–${fmtTime(effEnd(b))}</div>
+      <div class="who"><strong>${esc(memberName(b.uid))}</strong>${mine?'':phoneBlock(b.uid)}</div><div class="acts">${acts}</div>`;
+    if(S.swapTarget===b.id && !mine && future){
+      h+=`<div class="panel"><label for="swap-select">${t('offerMine')}</label><select id="swap-select">${fut.map(m=>`<option value="${esc(m.id)}">${esc(fmtWhen(m.startMs))}</option>`).join('')}</select>
+        <button type="button" class="primary mini" data-act="swap-send" data-id="${esc(b.id)}">${t('send')}</button><button type="button" class="mini" data-act="swap-close">${t('close')}</button></div>`;
+    }
+    h+='</div>';
+  }
+  if(!rows.some(r=>r.g)) h+=`<div class="empty">${t('noFree')}</div>`;
+  h+='</div>';
+  setHTML(el,h);
+}
+function renderBookForm(){
+  const sel=$('start-time'), btn=$('book-btn'), pv=$('book-preview');
+  const starts = S.ready ? freeStarts(S.day) : [];
+  const prevVal=sel.value;
+  const html = starts.length ? starts.map(s=>`<option value="${s}">${fmtTime(s)}</option>`).join('') : `<option value="">${t('noStarts')}</option>`;
+  if(sel._last!==html){ sel.innerHTML=html; sel._last=html; if(starts.map(String).includes(prevVal)) sel.value=prevVal; }
+  const canBook = S.ready && registered() && !(S.machine&&S.machine.broken) && starts.length>0;
+  btn.disabled = !canBook || S.busy; sel.disabled = !S.ready || !starts.length;
+  const ms = sel.value ? Number(sel.value) : null;
+  if(S.ready && S.uid && !registered()) pv.textContent=t('errReg');
+  else pv.textContent = ms ? dayLabel(S.day)+' · '+t('preview',{a:fmtTime(ms),b:fmtTime(ms+WASH),c:fmtTime(ms+SLOT)}) : '';
+}
+
+/* ---------- admin + account ---------- */
+function renderAdmin(){
+  const el=$('admin');
+  if(!S.ready || !S.isAdmin){ setHTML(el,''); return; }
+  const now=Date.now();
+  const ids=Object.keys(S.members).sort((a,b)=>(S.members[a].name||'').localeCompare(S.members[b].name||''));
+  let h=`<div class="card admin" style="display:flex;flex-direction:column;gap:12px">
+    <div class="turn-head"><h2>${t('adminTitle')}</h2><span class="pill">${t('adminBadge')}</span></div>
+    <div class="reg-summary"><p>${S.machine.broken?t('machineBroken'):t('machineOk')}</p>
+      <button type="button" class="${S.machine.broken?'primary':'danger'}" data-act="machine">${S.machine.broken?t('markOk'):t('markBroken')}</button></div>
+    <h3>${t('members',{n:ids.length})}</h3>`;
+  if(!ids.length) h+=`<p class="muted">${t('noMembers')}</p>`;
+  h+='<div>';
+  for(const id of ids){
+    const m=S.members[id]; const n=S.bookings.filter(b=>b.uid===id && b.startMs>now).length;
+    const conf=S.confirm==='rm:'+id;
+    h+=`<div class="member"><div class="info"><strong>${esc(m.name)}${id===S.uid?` <span class="pill">${t('adminBadge')}</span>`:''}</strong>
+      <span class="small"><span class="phone">${esc(m.phone)}</span> · <span dir="ltr">${esc(m.email)}</span></span><span class="small muted">${t('upcoming',{n})}</span></div>
+      <div class="acts-wrap">${id===S.uid?'':conf?`<button type="button" class="mini danger solid" data-act="rm-yes" data-uid="${esc(id)}">${t('confirmRemove')}</button><button type="button" class="mini" data-act="keep">${t('keep')}</button>`:`<button type="button" class="mini danger" data-act="rm" data-uid="${esc(id)}">${t('remove')}</button>`}</div></div>`;
+  }
+  h+=`</div><p class="muted small">${t('removeHint')}</p></div>`;
+  setHTML(el,h);
+}
+function renderAccount(){
+  const el=$('account');
+  if(!S.uid){ setHTML(el,''); return; }
+  setHTML(el, S.isAnon
+    ? `<div class="account"><p>${t('accAnon')}</p><button type="button" data-act="google">${t('google')}</button></div>`
+    : `<div class="account"><p>${t('accGoogle',{email:`<span dir="ltr">${esc(S.email)}</span>`})}${S.isAdmin?` <span class="pill">${t('adminBadge')}</span>`:''}</p><button type="button" data-act="signout">${t('signOut')}</button></div>`);
+}
+
+function applyLang(){
+  document.documentElement.lang=L; document.documentElement.dir = L==='he'?'rtl':'ltr';
+  document.querySelectorAll('[data-i18n]').forEach(n=>n.textContent=t(n.dataset.i18n));
+  $('lang-btn').textContent=t('langBtn');
+  document.title=t('title');
+}
+function renderAll(){ renderNotice(); renderStatus(); renderRegister(); renderMine(); renderDays(); renderTimeline(); renderDayList(); renderBookForm(); renderAdmin(); renderAccount(); }
+
+/* ---------- data ---------- */
+function docs(snap){ return snap.docs.map(d=>Object.assign({id:d.id},d.data())); }
+function subscribe(){
+  unsubs.forEach(f=>{ try{f();}catch(e){} }); unsubs=[];
+  S.loadedB=false;
+  const timer=setTimeout(()=>{ if(!S.loadedB){ S.unreachable=true; S.ready=true; renderAll(); } },10000);
+  unsubs.push(db.collection('members').onSnapshot(s=>{ const m={}; s.docs.forEach(d=>{ m[d.id]=d.data(); }); S.members=m; renderAll(); }, e=>console.warn('members',e)));
+  unsubs.push(db.collection('bookings').where('startMs','>=',Date.now()-24*H).orderBy('startMs').onSnapshot(s=>{
+    S.bookings=docs(s); S.loadedB=true; S.ready=true; S.unreachable=false; clearTimeout(timer); renderAll();
+  }, e=>{ console.warn('bookings',e); clearTimeout(timer); S.ready=true; S.unreachable=true; renderAll(); }));
+  unsubs.push(db.collection('swaps').where('fromUid','==',S.uid).onSnapshot(s=>{ S.swapsFrom=docs(s); renderAll(); }, e=>console.warn('swaps',e)));
+  unsubs.push(db.collection('swaps').where('toUid','==',S.uid).onSnapshot(s=>{ S.swapsTo=docs(s); renderAll(); }, e=>console.warn('swaps',e)));
+  unsubs.push(db.doc('config/machine').onSnapshot(d=>{ S.machine=d.exists?d.data():{broken:false}; renderAll(); }, e=>console.warn('machine',e)));
+}
+async function handleUser(u){
+  if(!u){ try{ await auth.signInAnonymously(); }catch(e){ console.warn(e); S.authFail=true; S.ready=true; renderAll(); } return; }
+  S.uid=u.uid; S.isAnon=u.isAnonymous; S.email=u.email||''; S.isAdmin=false; S.editing=false;
+  if(!u.isAnonymous){ try{ await db.doc('adminCheck/me').get(); S.isAdmin=true; }catch(e){ S.isAdmin=false; } }
+  subscribe(); renderAll();
+}
+function tickIds(b){ return [0,1,2].map(k=>String(b.startMs+k*TICK)); }
+
+async function book(startMs){
+  if(!registered()) throw {code:'reg'};
+  if(S.machine.broken) throw {code:'ooo'};
+  if(!startMs) throw {code:'time'};
+  if(startMs <= Date.now()-10*60000) throw {code:'past'};
+  const day=dayKey(startMs);
+  if(S.bookings.some(b=>b.uid===S.uid && b.day===day)) throw {code:'daily'};
+  if(!isFree(startMs)) throw {code:'taken'};
+  const id=String(startMs), batch=db.batch();
+  batch.set(db.doc('bookings/'+id), {uid:S.uid, startMs, endMs:startMs+SLOT, day, createdAt:Date.now()});
+  for(const tk of tickIds({startMs})) batch.set(db.doc('ticks/'+tk), {booking:id});
+  batch.set(db.doc('daily/'+S.uid+'_'+day), {uid:S.uid, day, booking:id});
+  try{ await batch.commit(); }
+  catch(e){ if(e && e.code==='permission-denied') throw {code: S.machine.broken?'ooo':'taken'}; throw e; }
+}
+function addDeleteBooking(batch, b){
+  batch.delete(db.doc('bookings/'+b.id));
+  for(const tk of tickIds(b)) batch.delete(db.doc('ticks/'+tk));
+  batch.delete(db.doc('daily/'+b.uid+'_'+b.day));
+}
+async function cancelBooking(id){
+  const b=S.bookings.find(x=>x.id===id); if(!b) return;
+  const batch=db.batch(); addDeleteBooking(batch,b); await batch.commit();
+}
+async function markDone(id){
+  const b=S.bookings.find(x=>x.id===id); if(!b) return;
+  const now=Math.min(Math.max(Date.now(), b.startMs), b.endMs);
+  const batch=db.batch();
+  batch.update(db.doc('bookings/'+id), {doneAt:now});
+  for(const tk of tickIds(b)) if(Number(tk)>=now) batch.delete(db.doc('ticks/'+tk));
+  await batch.commit();
+}
+async function acceptSwap(sw){
+  const ra=db.doc('bookings/'+sw.fromBooking), rb=db.doc('bookings/'+sw.toBooking);
+  const [sa,sb]=await Promise.all([ra.get(),rb.get()]);
+  const a=sa.exists?sa.data():null, b=sb.exists?sb.data():null, now=Date.now();
+  if(!a||!b||a.uid!==sw.fromUid||b.uid!==sw.toUid||a.startMs<=now||b.startMs<=now) throw {code:'swapgone'};
+  if(a.day!==b.day){
+    const clash=S.bookings.some(x=>(x.uid===sw.fromUid && x.id!==sw.fromBooking && x.day===b.day) || (x.uid===sw.toUid && x.id!==sw.toBooking && x.day===a.day));
+    if(clash) throw {code:'swapday'};
+  }
+  const batch=db.batch();
+  batch.update(ra, {uid:sw.toUid, swap:sw.id});
+  batch.update(rb, {uid:sw.fromUid, swap:sw.id});
+  batch.set(db.doc('daily/'+sw.toUid+'_'+a.day), {uid:sw.toUid, day:a.day, booking:sw.fromBooking});
+  batch.set(db.doc('daily/'+sw.fromUid+'_'+b.day), {uid:sw.fromUid, day:b.day, booking:sw.toBooking});
+  if(a.day!==b.day){
+    batch.delete(db.doc('daily/'+sw.fromUid+'_'+a.day));
+    batch.delete(db.doc('daily/'+sw.toUid+'_'+b.day));
+  }
+  batch.update(db.doc('swaps/'+sw.id), {status:'accepted', answeredAt:now});
+  try{ await batch.commit(); }
+  catch(e){ if(e && e.code==='permission-denied') throw {code:'swapday'}; throw e; }
+}
+function errMsg(e){
+  const map={taken:'errTaken',daily:'errDaily',past:'errPast',reg:'errReg',ooo:'errOOO',swapday:'errSwapDay',swapgone:'errSwapGone',time:'errTime',dup:'errSwapDup'};
+  if(e && map[e.code]) return t(map[e.code]);
+  if(e && e.code==='permission-denied') return t('errDenied');
+  return t('errGeneric');
+}
+
+/* ---------- calendar file ---------- */
+function icsFor(b){
+  const f=ms=>new Date(ms).toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,'');
+  const det=t('calDetails',{a:fmtTime(b.startMs),b:fmtTime(b.endMs)}).replace(/[,;\\]/g,m=>'\\'+m);
+  const ev=(uid,title,a,z,trig)=>['BEGIN:VEVENT','UID:'+uid+'@laundry-queue','DTSTAMP:'+f(Date.now()),'DTSTART:'+f(a),'DTEND:'+f(z),'SUMMARY:'+title,'DESCRIPTION:'+det,
+    'BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:'+title,'TRIGGER:'+trig,'END:VALARM','END:VEVENT'];
+  return ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Laundry Queue//EN','CALSCALE:GREGORIAN','METHOD:PUBLISH',
+    ...ev(b.id+'-wash',t('calWash'),b.startMs,b.startMs+WASH,'-PT10M'),
+    ...ev(b.id+'-pickup',t('calPick'),b.startMs+WASH,b.endMs,'-PT0M'),
+    'END:VCALENDAR'].join('\r\n')+'\r\n';
+}
+function openIcs(b){
+  const text=icsFor(b);
+  const iOS=/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
+  if(iOS){ location.href='data:text/calendar;charset=utf-8,'+encodeURIComponent(text); return; }
+  const url=URL.createObjectURL(new Blob([text],{type:'text/calendar;charset=utf-8'}));
+  const a=document.createElement('a'); a.href=url; a.download='laundry-'+b.day+'-'+fmtTime(b.startMs).replace(':','')+'.ics';
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),10000);
+}
+
+async function googleSignIn(){
+  const p=new firebase.auth.GoogleAuthProvider(); const u=auth.currentUser;
+  try{
+    if(u && u.isAnonymous){ await u.linkWithPopup(p); await handleUser(auth.currentUser); }
+    else await auth.signInWithPopup(p);
+  }catch(e){
+    if(e && (e.code==='auth/credential-already-in-use'||e.code==='auth/email-already-in-use') && e.credential){ await auth.signInWithCredential(e.credential); }
+    else if(e && (e.code==='auth/popup-blocked'||e.code==='auth/operation-not-supported-in-this-environment')){ await auth.signInWithRedirect(p); }
+    else if(e && e.code!=='auth/popup-closed-by-user' && e.code!=='auth/cancelled-popup-request'){ console.warn(e); toast(t('errGeneric')); }
+  }
+}
+
+/* ---------- events ---------- */
+document.addEventListener('click', async ev=>{
+  const btn=ev.target.closest('[data-act]'); if(!btn) return;
+  const act=btn.dataset.act, id=btn.dataset.id;
+  try{
+    switch(act){
+      case 'lang': L = L==='he'?'en':'he'; try{ localStorage.setItem('lq-lang',L); }catch(e){} applyLang(); renderAll(); break;
+      case 'day': S.day=btn.dataset.day; S.swapTarget=null; S.confirm=null; renderAll(); break;
+      case 'pick': { const sel=$('start-time'); sel.value=btn.dataset.ms; renderBookForm(); $('book-form').scrollIntoView({block:'center',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'}); sel.focus({preventScroll:true}); break; }
+      case 'edit': S.editing=true; renderRegister(); break;
+      case 'edit-cancel': S.editing=false; renderRegister(); break;
+      case 'cancel': S.confirm='cancel:'+id; renderAll(); break;
+      case 'admin-cancel': S.confirm='admin:'+id; renderAll(); break;
+      case 'rm': S.confirm='rm:'+btn.dataset.uid; renderAll(); break;
+      case 'keep': S.confirm=null; renderAll(); break;
+      case 'cancel-yes': case 'admin-cancel-yes': S.confirm=null; btn.disabled=true; await cancelBooking(id); toast(t('cancelled')); break;
+      case 'done': btn.disabled=true; await markDone(id); toast(t('doneMsg')); break;
+      case 'copy': { const txt=btn.dataset.text; try{ await navigator.clipboard.writeText(txt); toast(t('copied')); }catch(e){ const p=btn.parentElement.querySelector('.phone'); if(p){ const r=document.createRange(); r.selectNodeContents(p); const s=getSelection(); s.removeAllRanges(); s.addRange(r);} } break; }
+      case 'ics': { const b=S.bookings.find(x=>x.id===id); if(b) openIcs(b); break; }
+      case 'swap-open': S.swapTarget=id; renderDayList(); break;
+      case 'swap-close': S.swapTarget=null; renderDayList(); break;
+      case 'swap-send': {
+        const mineId=$('swap-select') && $('swap-select').value; const target=S.bookings.find(b=>b.id===id); if(!mineId||!target) break;
+        if(allSwaps().some(s=>s.status==='pending'&&s.fromBooking===mineId&&s.toBooking===id)) throw {code:'dup'};
+        await db.collection('swaps').add({fromUid:S.uid, toUid:target.uid, fromBooking:mineId, toBooking:id, status:'pending', createdAt:Date.now()});
+        S.swapTarget=null; toast(t('sent')); renderAll(); break; }
+      case 'swap-accept': { const sw=allSwaps().find(s=>s.id===id); if(!sw) break; btn.disabled=true; await acceptSwap(sw); toast(t('swapped')); break; }
+      case 'swap-decline': await db.doc('swaps/'+id).update({status:'declined', answeredAt:Date.now()}); break;
+      case 'swap-dismiss': await db.doc('swaps/'+id).delete(); break;
+      case 'machine': await db.doc('config/machine').set({broken:!S.machine.broken, updatedAt:Date.now()}); break;
+      case 'rm-yes': {
+        const uid=btn.dataset.uid; S.confirm=null; const now=Date.now();
+        const batch=db.batch();
+        batch.delete(db.doc('members/'+uid));
+        for(const b of S.bookings.filter(b=>b.uid===uid && b.startMs>now)) addDeleteBooking(batch,b);
+        await batch.commit(); toast(t('removed')); break; }
+      case 'google': await googleSignIn(); break;
+      case 'signout': await auth.signOut(); break;
+    }
+  }catch(e){ console.warn(e); toast(errMsg(e)); renderAll(); }
+});
+
+document.addEventListener('submit', async ev=>{
+  ev.preventDefault();
+  const f=ev.target;
+  if(f.id==='reg-form'){
+    const name=$('reg-name').value.trim(), email=$('reg-email').value.trim(), phone=$('reg-phone').value.trim();
+    if(!name) return toast(t('errName'));
+    if(!/^[^@ ]+@[^@ ]+[.][^@ ]+$/.test(email)) return toast(t('errEmail'));
+    if(phone.replace(/\D/g,'').length<9 || phone.length>25) return toast(t('errPhone'));
+    const prev=S.members[S.uid];
+    try{ await db.doc('members/'+S.uid).set({name, email, phone, joinedAt:(prev&&prev.joinedAt)||Date.now()}); S.editing=false; toast(t('saved')); renderAll(); }
+    catch(e){ console.warn(e); toast(errMsg(e)); }
+  }
+  if(f.id==='book-form'){
+    if(S.busy) return;
+    S.busy=true; renderBookForm();
+    const ms=Number($('start-time').value)||null;
+    try{ await book(ms); toast(t('booked',{t:fmtWhen(ms)})); }
+    catch(e){ console.warn(e); toast(errMsg(e)); }
+    finally{ S.busy=false; renderAll(); }
+  }
+});
+$('start-time').addEventListener('change',()=>renderBookForm());
+
+setInterval(()=>{ renderStatus(); renderMine(); renderDays(); renderTimeline(); renderDayList(); renderBookForm(); }, 30000);
+
+function init(){
+  applyLang(); renderAll();
+  const cfg=window.FIREBASE_CONFIG;
+  if(!window.firebase || !cfg || /^PASTE/.test(String(cfg.apiKey||''))){ S.setup=true; S.ready=true; renderAll(); return; }
+  firebase.initializeApp(cfg);
+  auth=firebase.auth(); db=firebase.firestore();
+  auth.getRedirectResult().catch(e=>{ if(e && e.credential && e.code==='auth/credential-already-in-use') auth.signInWithCredential(e.credential); });
+  auth.onAuthStateChanged(u=>{ handleUser(u); });
+}
+init();
+})();
+</script>
+</body>
+</html>
