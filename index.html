@@ -165,7 +165,14 @@ label{font-weight:600;font-size:.9rem}
 .adm-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
 .adm-filter{display:flex;align-items:center;gap:8px}
 .warn-text{color:var(--warn)}
-.head-acts{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+.head-acts{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;align-items:center}
+.icon-btn{padding:7px 9px;line-height:0}
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:29}
+.drawer{position:fixed;inset-block:0;inset-inline-end:0;width:min(320px,86vw);background:var(--surface);border-inline-start:1px solid var(--line);
+  box-shadow:0 0 24px rgba(0,0,0,.25);z-index:30;padding:calc(16px + env(safe-area-inset-top,0px)) 18px 18px;display:flex;flex-direction:column;gap:14px;overflow-y:auto}
+.drawer-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.drawer .acts-wrap{flex-direction:column;align-items:stretch}
+.drawer .acts-wrap button{justify-content:center}
 
 @media (max-width:560px){
   .adm-grid{grid-template-columns:1fr}
@@ -188,6 +195,9 @@ label{font-weight:600;font-size:.9rem}
     <div class="head-acts">
       <button id="admin-link" class="lang" data-act="goto-admin" type="button" data-i18n="adminTitle" hidden>ניהול</button>
       <button id="lang-btn" class="lang" data-act="lang" type="button">English</button>
+      <button id="menu-btn" class="icon-btn" data-act="menu" type="button" aria-expanded="false" aria-controls="menu" aria-label="תפריט">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg>
+      </button>
     </div>
   </header>
 
@@ -220,8 +230,10 @@ label{font-weight:600;font-size:.9rem}
   </section>
 
   <section id="admin"></section>
-  <div id="account"></div>
+
 </div>
+<div id="scrim" class="scrim" data-act="menu-close" hidden></div>
+<aside id="menu" class="drawer" role="dialog" aria-modal="true" aria-labelledby="menu-title" hidden></aside>
 <div id="toast" role="status" aria-live="polite"></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -295,8 +307,8 @@ en:{
   legendMine:"Your turn", legendTaken:"Taken", legendFree:"Free", neighbour:"Neighbour",
   calWash:"Laundry: start washing", calPick:"Laundry: take clothes out",
   calDetails:"Your laundry turn: {a}–{b}. Take your clothes out by {b} so the next person can start.",
-  accAnon:"Admin: sign in with your Google account to manage the schedule.",
   accGoogle:"Signed in as {email}.", google:"Sign in with Google", signOut:"Sign out",
+  menu:"Menu", adminSignIn:"Admin sign-in", adminSignInHint:"For the building admin only.", adminPanel:"Admin panel",
   remindLabel:"Email me reminders: about 10 minutes before my turn, and when it's time to take my clothes out.",
   remindOn:"Email reminders are on.", remindOff:"Email reminders are off.", remindTurnOn:"Turn on", remindTurnOff:"Turn off",
   remindOnMsg:"Email reminders on", remindOffMsg:"Email reminders off",
@@ -352,8 +364,8 @@ he:{
   legendMine:"התור שלי", legendTaken:"תפוס", legendFree:"פנוי", neighbour:"שכן/ה",
   calWash:"כביסה: להפעיל את המכונה", calPick:"כביסה: להוציא את הבגדים",
   calDetails:"תור הכביסה שלך: {a}–{b}. יש להוציא את הבגדים עד {b} כדי שהבא בתור יוכל להתחיל.",
-  accAnon:"מנהל/ת: יש להתחבר עם חשבון גוגל כדי לנהל את הלוח.",
   accGoogle:"מחובר/ת בתור {email}.", google:"כניסה עם גוגל", signOut:"התנתקות",
+  menu:"תפריט", adminSignIn:"כניסת מנהל", adminSignInHint:"למנהל/ת הבניין בלבד.", adminPanel:"ניהול הלוח",
   remindLabel:"לשלוח לי תזכורות במייל: כ-10 דקות לפני התור, וכשמגיע הזמן להוציא את הבגדים.",
   remindOn:"תזכורות במייל פעילות.", remindOff:"תזכורות במייל כבויות.", remindTurnOn:"הפעלה", remindTurnOff:"כיבוי",
   remindOnMsg:"תזכורות במייל הופעלו", remindOffMsg:"תזכורות במייל כובו",
@@ -743,23 +755,33 @@ function admHistoryHTML(){
   }
   return h+'</div>';
 }
-// Google sign-in is only for the admin: the button shows only on the admin link (…/laundry/?admin).
-const ADMIN_LINK = /(^|[?&#])admin\b/.test(location.search.slice(1)+'&'+location.hash.slice(1));
-function renderAccount(){
-  const el=$('account');
-  if(!S.uid || (S.isAnon && !ADMIN_LINK)){ setHTML(el,''); return; }
-  setHTML(el, S.isAnon
-    ? `<div class="account"><p>${t('accAnon')}</p><button type="button" data-act="google">${t('google')}</button></div>`
-    : `<div class="account"><p>${t('accGoogle',{email:`<span dir="ltr">${esc(S.email)}</span>`})}${S.isAdmin?` <span class="pill">${t('adminBadge')}</span>`:''}</p><button type="button" data-act="signout">${t('signOut')}</button></div>`);
+// Side menu (☰). Google sign-in is only for the admin, so it lives here rather than on the page.
+function renderMenu(){
+  const el=$('menu');
+  let h=`<div class="drawer-head"><h2 id="menu-title">${t('menu')}</h2><button type="button" class="icon-btn" data-act="menu-close" aria-label="${t('close')}">
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg></button></div>`;
+  if(S.uid && S.isAnon){
+    h+=`<div class="acts-wrap"><button type="button" data-act="google">${t('adminSignIn')}</button></div><p class="small muted">${t('adminSignInHint')}</p>`;
+  } else if(S.uid){
+    h+=`<p class="small">${t('accGoogle',{email:`<span dir="ltr">${esc(S.email)}</span>`})}${S.isAdmin?` <span class="pill">${t('adminBadge')}</span>`:''}</p>
+      <div class="acts-wrap">${S.isAdmin?`<button type="button" class="primary" data-act="goto-admin">${t('adminPanel')}</button>`:''}<button type="button" data-act="signout">${t('signOut')}</button></div>`;
+  }
+  setHTML(el,h);
 }
-
+function setMenu(open){
+  const m=$('menu'), sc=$('scrim'), b=$('menu-btn');
+  m.hidden=!open; sc.hidden=!open; b.setAttribute('aria-expanded', String(open));
+  if(open){ renderMenu(); const f=m.querySelector('[data-act]:not([data-act=menu-close])')||m.querySelector('button'); if(f) f.focus(); }
+  else b.focus({preventScroll:true});
+}
 function applyLang(){
   document.documentElement.lang=L; document.documentElement.dir = L==='he'?'rtl':'ltr';
   document.querySelectorAll('[data-i18n]').forEach(n=>n.textContent=t(n.dataset.i18n));
   $('lang-btn').textContent=t('langBtn');
+  $('menu-btn').setAttribute('aria-label', t('menu'));
   document.title=t('title');
 }
-function renderAll(){ renderNotice(); renderStatus(); renderRegister(); renderMine(); renderDays(); renderTimeline(); renderDayList(); renderBookForm(); renderCalPrompt(); renderAdmin(); renderAccount(); }
+function renderAll(){ renderNotice(); renderStatus(); renderRegister(); renderMine(); renderDays(); renderTimeline(); renderDayList(); renderBookForm(); renderCalPrompt(); renderAdmin(); renderMenu(); }
 
 /* ---------- data ---------- */
 function docs(snap){ return snap.docs.map(d=>Object.assign({id:d.id},d.data())); }
@@ -961,7 +983,9 @@ document.addEventListener('click', async ev=>{
         batch.delete(db.doc('members/'+uid));
         for(const b of S.bookings.filter(b=>b.uid===uid && b.startMs>now)) addDeleteBooking(batch,b);
         await batch.commit(); if(S.memberEdit===uid) S.memberEdit=null; toast(t('removed')); break; }
-      case 'goto-admin': $('admin').scrollIntoView({block:'start', behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'}); break;
+      case 'menu': setMenu(true); break;
+      case 'menu-close': setMenu(false); break;
+      case 'goto-admin': if(!$('menu').hidden) setMenu(false); $('admin').scrollIntoView({block:'start', behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'}); break;
       case 'adm-tab': S.adminTab=btn.dataset.tab; S.adminEdit=null; S.memberEdit=null; S.confirm=null; renderAdmin();
         if(S.adminTab==='history' && !S.history && !S.historyLoading) await loadHistory(); break;
       case 'adm-hist-refresh': await loadHistory(); break;
@@ -974,8 +998,8 @@ document.addEventListener('click', async ev=>{
       case 'adm-m-edit': S.memberEdit=btn.dataset.uid; renderAdmin(); break;
       case 'adm-m-close': S.memberEdit=null; renderAdmin(); break;
       case 'adm-m-save': btn.disabled=true; await adminSaveMember(btn.dataset.uid); renderAll(); break;
-      case 'google': await googleSignIn(); break;
-      case 'signout': await auth.signOut(); break;
+      case 'google': setMenu(false); await googleSignIn(); break;
+      case 'signout': setMenu(false); await auth.signOut(); break;
     }
   }catch(e){ console.warn(e); toast(errMsg(e)); btn.disabled=false; renderAll(); }
 });
@@ -1007,6 +1031,7 @@ document.addEventListener('submit', async ev=>{
   }
 });
 $('start-time').addEventListener('change',()=>renderBookForm());
+document.addEventListener('keydown', ev=>{ if(ev.key==='Escape' && !$('menu').hidden) setMenu(false); });
 document.addEventListener('change', ev=>{
   const id=ev.target.id||'';
   if(id==='adm-filter'){ S.adminFilter=ev.target.value; renderAdmin(); }

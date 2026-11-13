@@ -74,7 +74,7 @@ async function openUser(label, opts = {}) {
     route.fulfill({ contentType: 'text/javascript', body });
   });
   await page.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
-  await page.goto(APP + (opts.query || ''));
+  await page.goto(APP);
   await page.waitForFunction(() => window.firebase && firebase.auth().currentUser, null, { timeout: 15000 });
   const uid = await page.evaluate(() => firebase.auth().currentUser.uid);
   return { label, ctx, page, uid };
@@ -150,13 +150,18 @@ async function main() {
     assert(await getDoc('members/' + A.uid), 'Dana member doc missing');
   });
 
-  await check('regular users see no Google sign-in; the ?admin link shows it', async () => {
+  await check('Google sign-in is not on the page; the ☰ menu has "Admin sign-in"', async () => {
     await A.page.waitForSelector('.reg-card');
-    assert(!(await A.page.$('[data-act=google]')), 'Google button shown to a regular user');
-    const X = await openUser('Admin link', { query: '?admin' });
-    await X.page.waitForSelector('[data-act=google]', { timeout: 8000 });
-    assert((await X.page.textContent('#account')).includes('Admin'), 'admin hint missing');
-    await X.ctx.close();
+    assert(!(await A.page.isVisible('[data-act=google]')), 'Google button visible on the page');
+    await A.page.click('[data-act=menu]');
+    await A.page.waitForSelector('#menu [data-act=google]', { state: 'visible' });
+    assert((await A.page.textContent('#menu [data-act=google]')).includes('Admin sign-in'), 'label wrong');
+    await shot(A, '0b-menu');
+    await A.page.keyboard.press('Escape');
+    await A.page.waitForSelector('#menu', { state: 'hidden' });
+    await A.page.click('[data-act=menu]');
+    await A.page.click('#scrim', { position: { x: 10, y: 400 } });
+    await A.page.waitForSelector('#menu', { state: 'hidden' });
   });
 
   console.log('\nBooking and live updates');
@@ -370,13 +375,18 @@ async function main() {
   await check('Google admin sees the admin panel; another Google user does not', async () => {
     const E = await openUser('Eve');
     await E.page.evaluate(() => firebase.auth().signInWithCredential(firebase.auth.GoogleAuthProvider.credential(JSON.stringify({ sub: 'eve', email: 'eve@example.com', email_verified: true }))));
-    await E.page.waitForSelector('[data-act=signout]');
+    await E.page.waitForSelector('[data-act=signout]', { state: 'attached' });
     await sleep(800);
     assert(!(await E.page.$('#admin .admin')), 'Eve got the admin panel');
     await E.ctx.close();
     await Adm.page.evaluate(() => firebase.auth().signInWithCredential(firebase.auth.GoogleAuthProvider.credential(JSON.stringify({ sub: 'boss', email: 'admin@example.com', email_verified: true }))));
     await Adm.page.waitForSelector('#admin .admin', { timeout: 8000 });
     assert(await Adm.page.isVisible('#admin-link'), 'header Admin shortcut missing');
+    await Adm.page.click('[data-act=menu]');
+    await Adm.page.waitForSelector('#menu [data-act=goto-admin]', { state: 'visible' });
+    assert((await Adm.page.textContent('#menu')).includes('admin@example.com'), 'menu does not show the account');
+    await Adm.page.click('#menu [data-act=goto-admin]');
+    await Adm.page.waitForSelector('#menu', { state: 'hidden' });
     await Adm.page.click('[data-act=adm-tab][data-tab=members]');
     const t = await Adm.page.textContent('#admin');
     assert(t.includes('Members (3)') && t.includes('dana@example.com'), 'members list wrong: ' + t.slice(0, 200));
