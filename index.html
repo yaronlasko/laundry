@@ -564,7 +564,8 @@ function freeGaps(k){
   let g=null;
   for(const s of starts){ if(g && s===g[2]+TICK){ g[2]=s; } else { if(g) gaps.push(g); g=[s,null,s]; } }
   if(g) gaps.push(g);
-  return gaps.map(x=>[x[0], x[2]+SLOT]);
+  // A late start runs past midnight; the free window shown for this day stops at midnight ("24:00").
+  return gaps.map(x=>[x[0], Math.min(x[2]+SLOT, de)]);
 }
 function renderTimeline(){
   const k=S.day, ds=dayStart(k), de=dayEnd(k), span=de-ds, now=Date.now();
@@ -592,7 +593,7 @@ function renderDayList(){
   for(const r of rows){
     if(r.g){
       const [a,b]=r.g;
-      h+=`<div class="row gap"><div class="when">${fmtTime(a)}–${fmtTime(b)}</div><div class="who">${t('free')}</div>
+      h+=`<div class="row gap"><div class="when">${fmtTime(a)}–${b>=dayEnd(k)?'24:00':fmtTime(b)}</div><div class="who">${t('free')}</div>
         <div class="acts"><button type="button" class="mini" data-act="pick" data-ms="${a}">${t('bookAt',{t:fmtTime(a)})}</button></div></div>`;
       continue;
     }
