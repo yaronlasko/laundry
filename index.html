@@ -123,6 +123,15 @@ label{font-weight:600;font-size:.9rem}
 .row.past{opacity:.55}
 .row .panel{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--surface-2);border-radius:10px;padding:10px}
 .empty{padding:16px 14px;color:var(--muted)}
+/* day agenda: each turn is its own block; free time is an open, dashed slot to fill */
+.agenda{display:flex;flex-direction:column;gap:8px}
+.agenda .row,.agenda .row:first-child{border:1px solid var(--line);border-radius:var(--r);background:var(--surface);padding-block:12px}
+.agenda .row.mine{background:var(--surface);border-inline-start:4px solid var(--mine);padding-inline-start:11px}
+.agenda .row.gap{background:transparent;border:1.5px dashed var(--ok);border-color:color-mix(in srgb, var(--ok) 55%, transparent)}
+.agenda .row.gap .when{color:var(--muted);font-weight:500}
+.agenda .row.gap .acts button{border-color:var(--ok);color:var(--ok);background:var(--surface)}
+.agenda .row.gap .acts button:hover{background:var(--ok-soft)}
+.agenda .empty{padding:4px 2px;font-size:.9rem}
 .pill{font:600 .75rem var(--font-body);letter-spacing:.04em;text-transform:uppercase;border-radius:999px;padding:2px 8px;background:var(--accent-soft);color:var(--accent)}
 .pill.mine{background:var(--mine-soft);color:var(--mine)}
 .pill.ok{background:var(--ok-soft);color:var(--ok)}
@@ -214,7 +223,7 @@ label{font-weight:600;font-size:.9rem}
       <div class="legend">
         <span><i style="background:var(--mine)"></i><span data-i18n="legendMine"></span></span>
         <span><i style="background:var(--accent)"></i><span data-i18n="legendTaken"></span></span>
-        <span><i style="background:var(--ok-soft);border:1px solid var(--ok)"></i><span data-i18n="legendFree"></span></span>
+        <span><i style="border:1.5px dashed var(--ok)"></i><span data-i18n="legendFree"></span></span>
       </div>
     </div>
     <form id="book-form" class="book card">
@@ -599,7 +608,7 @@ function renderDayList(){
   for(const g of freeGaps(k)) rows.push({t:g[0], g});
   rows.sort((a,b)=>a.t-b.t);
   const fut=myFuture();
-  let h='<div class="list">';
+  let h='<div class="agenda">';
   for(const r of rows){
     if(r.g){
       const [a,b]=r.g;
