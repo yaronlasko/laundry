@@ -172,6 +172,15 @@ async function main() {
     await A.page.click('[data-act=cal-close]');
     await eventually(async () => !(await A.page.$('.cal-prompt')), 'card did not close');
   });
+  await check('a day with no turns shows one free window, 00:00–24:00', async () => {
+    await showDay(A, at(6, 12));
+    await eventually(async () => (await A.page.$$eval('#daylist .row .when', w => w.map(x => x.textContent))).join('|') === '00:00–24:00', 'rows: ' + (await A.page.$$eval('#daylist .row .when', w => w.map(x => x.textContent))).join('|'));
+  });
+  await check("a free window before a turn ends at the turn's start; after the day's last turn it ends at 24:00", async () => {
+    await showDay(A, a10);
+    const w = await A.page.$$eval('#daylist .row .when', w => w.map(x => x.textContent));
+    assert(w.join('|') === '00:00–10:00|10:00–10:45|10:45–24:00', 'rows: ' + w.join('|'));
+  });
   await check("Avi sees Dana's turn appear without reloading (name + phone)", async () => {
     await showDay(B, a10);
     await eventually(async () => (await B.page.textContent('#daylist')).includes('Dana'), "Dana's row never appeared for Avi");
