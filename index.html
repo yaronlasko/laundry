@@ -69,7 +69,10 @@ label{font-weight:600;font-size:.9rem}
 /* status dial */
 .status{display:grid;grid-template-columns:132px 1fr;gap:18px;align-items:center}
 .dial{position:relative;width:132px;height:132px}
-.dial svg{width:100%;height:100%;display:block}
+.dial svg{width:100%;height:100%;display:block;overflow:visible}
+.status.card{border-radius:22px;padding:22px}
+.dial .water{animation:slosh 3.4s ease-in-out infinite;transform-origin:60px 60px}
+@keyframes slosh{0%,100%{transform:rotate(-8deg)}50%{transform:rotate(8deg)}}
 .dial .center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
 .dial .big{font:700 2rem/1 var(--font-display);font-variant-numeric:tabular-nums}
 .dial .unit{font-size:.8rem;color:var(--muted)}
@@ -132,7 +135,7 @@ label{font-weight:600;font-size:.9rem}
 .agenda .row.gap .acts button{border-color:var(--ok);color:var(--ok);background:var(--surface)}
 .agenda .row.gap .acts button:hover{background:var(--ok-soft)}
 .agenda .empty{padding:4px 2px;font-size:.9rem}
-.pill{font:600 .75rem var(--font-body);letter-spacing:.04em;text-transform:uppercase;border-radius:999px;padding:2px 8px;background:var(--accent-soft);color:var(--accent)}
+.pill{font:600 .8rem var(--font-body);border-radius:999px;padding:2px 9px;background:var(--accent-soft);color:var(--accent)}
 .pill.mine{background:var(--mine-soft);color:var(--mine)}
 .pill.ok{background:var(--ok-soft);color:var(--ok)}
 .pill.warn{background:var(--warn-soft);color:var(--warn)}
@@ -165,7 +168,7 @@ label{font-weight:600;font-size:.9rem}
 
 #toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom, 0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:999px;font-weight:600;max-width:calc(100% - 32px);text-align:center;opacity:0;pointer-events:none;transition:opacity .2s;z-index:20}
 #toast.show{opacity:1}
-@media (prefers-reduced-motion: reduce){#toast{transition:none}}
+@media (prefers-reduced-motion: reduce){#toast{transition:none}.dial .water{animation:none}}
 
 .tabs{display:flex;flex-wrap:wrap;gap:6px}
 .tabs button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
@@ -199,7 +202,7 @@ label{font-weight:600;font-size:.9rem}
   <header class="top">
     <div>
       <h1 data-i18n="title">תור כביסה</h1>
-      <p class="sub" data-i18n="subtitle">מכונה אחת · תורים של 45 דקות · תור אחד לאדם ביום</p>
+      <p class="sub" data-i18n="subtitle">מכונה אחת, תורים של 45 דקות, תור אחד לאדם ביום</p>
     </div>
     <div class="head-acts">
       <button id="admin-link" class="lang" data-act="goto-admin" type="button" data-i18n="adminTitle" hidden>ניהול</button>
@@ -267,11 +270,11 @@ const SLOT = 45*60000, WASH = 40*60000, TICK = 15*60000, DAYS = 14, H = 3600000;
 
 const T = {
 en:{
-  title:"Laundry Queue", subtitle:"One machine · 45-minute turns · 1 turn per person per day", langBtn:"עברית",
+  title:"Laundry Queue", subtitle:"One machine, 45-minute turns, one turn per person a day", langBtn:"עברית",
   statusFree:"Machine is free", freeUntil:"Free until {t}", freeRest:"No more turns booked today",
   washing:"Washing", pickup:"Time to take clothes out", turnOf:"{name}'s turn", yourTurn:"Your turn",
   washEnds:"Wash ends {t}", pickupBy:"Clothes out by {t}", minWash:"min washing", minPick:"min to empty",
-  next:"Next: {name} at {t}", nextDay:"Next: {name} · {t}", prev:"Last turn: {name}, ended {t}", prevHint:"Laundry still inside? Call:",
+  next:"Next: {name} at {t}", nextDay:"Next: {name}, {t}", prev:"Last turn: {name}, ended {t}", prevHint:"Laundry still inside? Call:",
   outOfOrder:"The machine is marked out of order. Booking is paused.",
   call:"Call", copy:"Copy", copied:"Copied",
   regTitle:"Sign up to book", regIntro:"Your phone number is shown to the other neighbours, so they can reach you if your laundry is still in the machine.",
@@ -286,7 +289,7 @@ en:{
   accept:"Accept", decline:"Decline", dismiss:"Dismiss", pending:"Waiting", accepted:"Accepted", declined:"Declined", stale:"No longer valid",
   bookTitle:"Book a turn", today:"Today", tomorrow:"Tomorrow",
   free:"Free", bookAt:"Book {t}", startLabel:"Start time", bookBtn:"Book 45 minutes",
-  preview:"Wash {a}–{b} · clothes out by {c}", you:"You", noStarts:"No free times",
+  preview:"Wash {a}–{b}, clothes out by {c}", you:"You", noStarts:"No free times",
   askSwap:"Ask to swap", offerMine:"Offer my turn:", send:"Send request", close:"Close",
   noFree:"No free time left on this day.",
   errTaken:"Someone just took that time. Pick another one.", errDaily:"You already have a turn on this day. One turn per day.",
@@ -325,11 +328,11 @@ en:{
   errRemind:"Your details were saved, but the reminder setting couldn't be saved."
 },
 he:{
-  title:"תור כביסה", subtitle:"מכונה אחת · תורים של 45 דקות · תור אחד לאדם ביום", langBtn:"English",
+  title:"תור כביסה", subtitle:"מכונה אחת, תורים של 45 דקות, תור אחד לאדם ביום", langBtn:"English",
   statusFree:"המכונה פנויה", freeUntil:"פנויה עד {t}", freeRest:"אין עוד תורים היום",
   washing:"בכביסה", pickup:"זמן להוציא את הבגדים", turnOf:"התור של {name}", yourTurn:"התור שלך",
   washEnds:"הכביסה מסתיימת ב-{t}", pickupBy:"להוציא את הבגדים עד {t}", minWash:"דק׳ כביסה", minPick:"דק׳ לפינוי",
-  next:"הבא בתור: {name} ב-{t}", nextDay:"הבא בתור: {name} · {t}", prev:"התור הקודם: {name}, הסתיים ב-{t}", prevHint:"נשארה כביסה במכונה? אפשר להתקשר:",
+  next:"הבא בתור: {name} ב-{t}", nextDay:"הבא בתור: {name}, {t}", prev:"התור הקודם: {name}, הסתיים ב-{t}", prevHint:"נשארה כביסה במכונה? אפשר להתקשר:",
   outOfOrder:"המכונה מסומנת כמקולקלת. הזמנת תורים מושהית.",
   call:"התקשרות", copy:"העתקה", copied:"הועתק",
   regTitle:"הרשמה להזמנת תורים", regIntro:"מספר הטלפון שלך יוצג לשכנים, כדי שיוכלו לפנות אליך אם הכביסה שלך נשארה במכונה.",
@@ -344,7 +347,7 @@ he:{
   accept:"אישור", decline:"דחייה", dismiss:"הסתרה", pending:"ממתין", accepted:"אושר", declined:"נדחה", stale:"כבר לא בתוקף",
   bookTitle:"הזמנת תור", today:"היום", tomorrow:"מחר",
   free:"פנוי", bookAt:"להזמין ל-{t}", startLabel:"שעת התחלה", bookBtn:"הזמנת 45 דקות",
-  preview:"כביסה {a}–{b} · להוציא עד {c}", you:"אני", noStarts:"אין שעות פנויות",
+  preview:"כביסה {a}–{b}, להוציא עד {c}", you:"אני", noStarts:"אין שעות פנויות",
   askSwap:"בקשת החלפה", offerMine:"להציע את התור שלי:", send:"שליחת בקשה", close:"סגירה",
   noFree:"אין זמן פנוי ביום הזה.",
   errTaken:"מישהו תפס את השעה הזו הרגע. בחר/י שעה אחרת.", errDaily:"כבר יש לך תור ביום הזה. תור אחד ביום.",
@@ -433,14 +436,20 @@ function phoneBlock(uid){
 }
 
 /* ---------- status ---------- */
-function dialSVG(e){
+// The machine's door: the ring fills as the turn runs (wash, then 5 minutes to empty it);
+// while washing, water rocks behind the glass.
+function dialSVG(e, washing){
   const w=Math.min(e,40), p=Math.max(0,e-40);
   return `<svg viewBox="0 0 120 120" aria-hidden="true"><g transform="rotate(-90 60 60)" fill="none" stroke-width="12">
     <circle cx="60" cy="60" r="50" pathLength="45" stroke="var(--track)" stroke-dasharray="40 5"></circle>
     <circle cx="60" cy="60" r="50" pathLength="45" stroke="var(--mine-soft)" stroke-dasharray="5 40" stroke-dashoffset="-40"></circle>
     ${w>0?`<circle cx="60" cy="60" r="50" pathLength="45" stroke="var(--accent)" stroke-dasharray="${w.toFixed(2)} 45"></circle>`:''}
     ${p>0?`<circle cx="60" cy="60" r="50" pathLength="45" stroke="var(--mine)" stroke-dasharray="${p.toFixed(2)} 45" stroke-dashoffset="-40"></circle>`:''}
-  </g><circle cx="60" cy="60" r="38" fill="var(--surface-2)"></circle></svg>`;
+  </g><circle cx="60" cy="60" r="59" fill="none" stroke="var(--line)" stroke-width="2"></circle>
+  <circle cx="60" cy="60" r="38" fill="var(--surface-2)"></circle>
+  ${washing?`<clipPath id="glass"><circle cx="60" cy="60" r="38"></circle></clipPath>
+  <g clip-path="url(#glass)"><path class="water" fill="var(--accent-soft)" d="M8 84 Q22 78 36 84 T64 84 T92 84 T120 84 V112 H8 Z"></path></g>`:''}
+  <circle cx="60" cy="60" r="38" fill="none" stroke="var(--line)" stroke-width="1.5"></circle></svg>`;
 }
 function renderStatus(){
   const el=$('status');
@@ -455,10 +464,10 @@ function renderStatus(){
     const e=Math.min(45,(now-cur.startMs)/60000);
     const washPhase = now < cur.startMs+WASH;
     const left = washPhase ? Math.ceil((cur.startMs+WASH-now)/60000) : Math.ceil((cur.endMs-now)/60000);
-    dial=`<div class="dial">${dialSVG(e)}<div class="center"><span class="big">${left}</span><span class="unit">${washPhase?t('minWash'):t('minPick')}</span></div></div>`;
+    dial=`<div class="dial">${dialSVG(e, washPhase)}<div class="center"><span class="big">${left}</span><span class="unit">${washPhase?t('minWash'):t('minPick')}</span></div></div>`;
     text=`<p class="head ${washPhase?'busy':'pick'}">${washPhase?t('washing'):t('pickup')}</p>
-      <p>${cur.uid===S.uid?t('yourTurn'):t('turnOf',{name:esc(memberName(cur.uid))})} · <span class="num" dir="ltr">${fmtTime(cur.startMs)}–${fmtTime(cur.endMs)}</span></p>
-      <p class="muted small">${washPhase?t('washEnds',{t:fmtTime(cur.startMs+WASH)})+' · ':''}${t('pickupBy',{t:fmtTime(cur.endMs)})}</p>
+      <p>${cur.uid===S.uid?t('yourTurn'):t('turnOf',{name:esc(memberName(cur.uid))})}, <span class="num" dir="ltr">${fmtTime(cur.startMs)}–${fmtTime(cur.endMs)}</span></p>
+      <p class="muted small">${washPhase?t('washEnds',{t:fmtTime(cur.startMs+WASH)})+'. ':''}${t('pickupBy',{t:fmtTime(cur.endMs)})}</p>
       ${phoneBlock(cur.uid)?`<div class="person">${phoneBlock(cur.uid)}</div>`:''}`;
   } else {
     dial=`<div class="dial">${dialSVG(0)}<div class="center"><span class="state">${t('legendFree')}</span></div></div>`;
@@ -491,7 +500,7 @@ function renderRegister(){
   if(me && !S.editing){
     const on=remindOn();
     const remindRow = S.prefsLoaded ? `<div class="reg-summary"><p class="small">${on?t('remindOn'):t('remindOff')} <span class="muted" dir="ltr">${esc(me.email)}</span></p><button type="button" class="mini${on?'':' primary'}" data-act="remind">${on?t('remindTurnOff'):t('remindTurnOn')}</button></div>` : '';
-    setHTML(el, `<div class="card reg-card"><div class="reg-summary"><p>${t('regAs',{name:`<strong>${esc(me.name)}</strong>`})} · <span class="phone">${esc(me.phone)}</span></p><button type="button" data-act="edit">${t('edit')}</button></div>${remindRow}</div>`);
+    setHTML(el, `<div class="card reg-card"><div class="reg-summary"><p>${t('regAs',{name:`<strong>${esc(me.name)}</strong>`})}, <span class="phone">${esc(me.phone)}</span></p><button type="button" data-act="edit">${t('edit')}</button></div>${remindRow}</div>`);
     return;
   }
   const v = me || {name:'', email:S.email||'', phone:''};
@@ -530,7 +539,7 @@ function renderMine(){
     const det=t('calDetails',{a:fmtTime(b.startMs),b:fmtTime(b.endMs)});
     const conf=S.confirm==='cancel:'+b.id;
     h+=`<article class="turn">
-      <div class="turn-head"><strong>${esc(dayLabel(b.day))} · <span dir="ltr">${fmtTime(b.startMs)}–${fmtTime(b.endMs)}</span></strong>${started?`<span class="pill mine">${t('nowPill')}</span>`:''}</div>
+      <div class="turn-head"><strong>${esc(dayLabel(b.day))}, <span dir="ltr">${fmtTime(b.startMs)}–${fmtTime(b.endMs)}</span></strong>${started?`<span class="pill mine">${t('nowPill')}</span>`:''}</div>
       <p class="muted small num">${t('preview',{a:fmtTime(b.startMs),b:fmtTime(b.startMs+WASH),c:fmtTime(b.endMs)})}</p>
       <div class="acts-wrap">
         <a class="btn" target="_blank" rel="noopener" href="${esc(gcalUrl(t('calWash'),b.startMs,b.startMs+WASH,det))}">${t('gWash')}</a>
@@ -663,7 +672,7 @@ function renderBookForm(){
   btn.disabled = !canBook || S.busy; sel.disabled = !S.ready || !starts.length;
   const ms = sel.value ? Number(sel.value) : null;
   if(S.ready && S.uid && !registered()) pv.textContent=t('errReg');
-  else pv.textContent = ms ? dayLabel(S.day)+' · '+t('preview',{a:fmtTime(ms),b:fmtTime(ms+WASH),c:fmtTime(ms+SLOT)}) : '';
+  else pv.textContent = ms ? dayLabel(S.day)+': '+t('preview',{a:fmtTime(ms),b:fmtTime(ms+WASH),c:fmtTime(ms+SLOT)}) : '';
 }
 
 /* ---------- admin + account ---------- */

@@ -71,6 +71,7 @@ The real protection is the Firestore security rules, published by hand in the Fi
 - **Escaping:** pass any user-provided value through `esc()` before putting it in HTML.
 - **RTL:** use logical CSS properties (`inset-inline-start`, `margin-inline-end`, `border-inline-start`). Wrap times, phone numbers and emails in `dir="ltr"`.
 - **Styling:** colors come from CSS custom properties on `:root`, with a dark-mode override block. Use the existing tokens (`--accent`, `--mine`, `--ok`, `--warn`, …) and components (`.card`, `.pill`, `.row`, `button.primary`, `button.danger`, `.mini`).
+- **Design:** the status card is the washing machine's front and the dial is its door (`dialSVG(e, washing)`: progress ring, rim, glass with water that rocks while washing; still with reduced motion). That's the one bold element; keep the rest quiet. Labels and pills are sentence case (no all caps). Write meta text as short sentences with commas, not chains joined by " · ". The day list is an agenda: separate blocks, free time as dashed outlines.
 - **Confirmations:** destructive actions use a two-step confirm via `S.confirm = '<kind>:<id>'`, not `confirm()`.
 
 ## Testing
