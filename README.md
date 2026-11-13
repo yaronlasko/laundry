@@ -63,5 +63,10 @@ A scheduled Firebase function (`functions/`) checks every 5 minutes and sends th
 ### Tests
 
 ```
-cd functions && npm install && npm test
+cd functions && npm install && npm test          # reminder timing and email text
+cd tests/multiuser && npm install && npm test    # several users at once, against the Firebase emulators
 ```
+
+The multi-user test runs the real app in separate browsers (sign-up, booking, two people grabbing the same slot,
+swaps, cancelling, finishing early, admin tools, reminder emails, Hebrew view). It uses its own stand-in security
+rules (`tests/multiuser/firestore.test.rules`), not the ones in the Firebase console.
