@@ -74,7 +74,7 @@ async function openUser(label, opts = {}) {
     route.fulfill({ contentType: 'text/javascript', body });
   });
   await page.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
-  await page.goto(APP);
+  await page.goto(APP + (opts.query || ''));
   await page.waitForFunction(() => window.firebase && firebase.auth().currentUser, null, { timeout: 15000 });
   const uid = await page.evaluate(() => firebase.auth().currentUser.uid);
   return { label, ctx, page, uid };
@@ -148,6 +148,15 @@ async function main() {
     await register(B, 'Avi', '050-222-2222', 'avi@example.com');
     await register(C, 'Noa', '050-333-3333', 'noa@example.com');
     assert(await getDoc('members/' + A.uid), 'Dana member doc missing');
+  });
+
+  await check('regular users see no Google sign-in; the ?admin link shows it', async () => {
+    await A.page.waitForSelector('.reg-card');
+    assert(!(await A.page.$('[data-act=google]')), 'Google button shown to a regular user');
+    const X = await openUser('Admin link', { query: '?admin' });
+    await X.page.waitForSelector('[data-act=google]', { timeout: 8000 });
+    assert((await X.page.textContent('#account')).includes('Admin'), 'admin hint missing');
+    await X.ctx.close();
   });
 
   console.log('\nBooking and live updates');

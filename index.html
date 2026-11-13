@@ -295,7 +295,7 @@ en:{
   legendMine:"Your turn", legendTaken:"Taken", legendFree:"Free", neighbour:"Neighbour",
   calWash:"Laundry: start washing", calPick:"Laundry: take clothes out",
   calDetails:"Your laundry turn: {a}–{b}. Take your clothes out by {b} so the next person can start.",
-  accAnon:"Your sign-up is saved on this phone. To use the same turns on another device, sign in with Google.",
+  accAnon:"Admin: sign in with your Google account to manage the schedule.",
   accGoogle:"Signed in as {email}.", google:"Sign in with Google", signOut:"Sign out",
   remindLabel:"Email me reminders: about 10 minutes before my turn, and when it's time to take my clothes out.",
   remindOn:"Email reminders are on.", remindOff:"Email reminders are off.", remindTurnOn:"Turn on", remindTurnOff:"Turn off",
@@ -352,7 +352,7 @@ he:{
   legendMine:"התור שלי", legendTaken:"תפוס", legendFree:"פנוי", neighbour:"שכן/ה",
   calWash:"כביסה: להפעיל את המכונה", calPick:"כביסה: להוציא את הבגדים",
   calDetails:"תור הכביסה שלך: {a}–{b}. יש להוציא את הבגדים עד {b} כדי שהבא בתור יוכל להתחיל.",
-  accAnon:"ההרשמה שלך שמורה בטלפון הזה. כדי להשתמש באותם תורים במכשיר נוסף, אפשר להתחבר עם גוגל.",
+  accAnon:"מנהל/ת: יש להתחבר עם חשבון גוגל כדי לנהל את הלוח.",
   accGoogle:"מחובר/ת בתור {email}.", google:"כניסה עם גוגל", signOut:"התנתקות",
   remindLabel:"לשלוח לי תזכורות במייל: כ-10 דקות לפני התור, וכשמגיע הזמן להוציא את הבגדים.",
   remindOn:"תזכורות במייל פעילות.", remindOff:"תזכורות במייל כבויות.", remindTurnOn:"הפעלה", remindTurnOff:"כיבוי",
@@ -743,9 +743,11 @@ function admHistoryHTML(){
   }
   return h+'</div>';
 }
+// Google sign-in is only for the admin: the button shows only on the admin link (…/laundry/?admin).
+const ADMIN_LINK = /(^|[?&#])admin\b/.test(location.search.slice(1)+'&'+location.hash.slice(1));
 function renderAccount(){
   const el=$('account');
-  if(!S.uid){ setHTML(el,''); return; }
+  if(!S.uid || (S.isAnon && !ADMIN_LINK)){ setHTML(el,''); return; }
   setHTML(el, S.isAnon
     ? `<div class="account"><p>${t('accAnon')}</p><button type="button" data-act="google">${t('google')}</button></div>`
     : `<div class="account"><p>${t('accGoogle',{email:`<span dir="ltr">${esc(S.email)}</span>`})}${S.isAdmin?` <span class="pill">${t('adminBadge')}</span>`:''}</p><button type="button" data-act="signout">${t('signOut')}</button></div>`);
