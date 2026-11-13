@@ -25,10 +25,16 @@ const db = admin.firestore();
 const fbDir = path.dirname(require.resolve('firebase/package.json'));
 const PATCH = `
 ;(function(){ const init = firebase.initializeApp;
-  firebase.initializeApp = function(c){ const app = init.call(this, Object.assign({}, c, { projectId: '${PROJECT}' }));
-    firebase.auth().useEmulator('http://127.0.0.1:9099', { disableWarnings: true });
-    firebase.firestore().useEmulator('127.0.0.1', 8080);
-    return app; }; })();`;
+  firebase.initializeApp = function(c, name){ const app = init.call(this, Object.assign({}, c, { projectId: '${PROJECT}' }), name);
+    app.auth().useEmulator('http://127.0.0.1:9099', { disableWarnings: true });
+    app.firestore().useEmulator('127.0.0.1', 8080);
+    return app; }; })();
+// The real Google pop-up can't load here, so signInWithPopup signs in with a fake emulator token
+// set by the test (window.__TEST_GOOGLE, JSON claims), or acts as if the user closed the pop-up.
+;(function(){ firebase.auth.Auth.prototype.signInWithPopup = function(){
+    const tok = window.__TEST_GOOGLE;
+    if (!tok) return Promise.reject(Object.assign(new Error('closed'), { code: 'auth/popup-closed-by-user' }));
+    return this.signInWithCredential(firebase.auth.GoogleAuthProvider.credential(tok)); }; })();`;
 const server = http.createServer((req, res) => {
   if (req.url === '/' || req.url.startsWith('/?')) {
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
@@ -372,15 +378,28 @@ async function main() {
 
   console.log('\nAdmin');
   const Adm = await openUser('Admin');
-  await check('Google admin sees the admin panel; another Google user does not', async () => {
-    const E = await openUser('Eve');
-    await E.page.evaluate(() => firebase.auth().signInWithCredential(firebase.auth.GoogleAuthProvider.credential(JSON.stringify({ sub: 'eve', email: 'eve@example.com', email_verified: true }))));
-    await E.page.waitForSelector('[data-act=signout]', { state: 'attached' });
-    await sleep(800);
-    assert(!(await E.page.$('#admin .admin')), 'Eve got the admin panel');
-    await E.ctx.close();
-    await Adm.page.evaluate(() => firebase.auth().signInWithCredential(firebase.auth.GoogleAuthProvider.credential(JSON.stringify({ sub: 'boss', email: 'admin@example.com', email_verified: true }))));
+  const googleAs = (u, sub, email) => u.page.evaluate(([sub, email]) => { window.__TEST_GOOGLE = JSON.stringify({ sub, email, email_verified: true }); }, [sub, email]);
+  await check('a non-admin using "Admin sign-in" gets an error and stays exactly as before (no Google link)', async () => {
+    await googleAs(A, 'mallory', 'mallory@example.com');
+    await A.page.click('[data-act=menu]');
+    await A.page.click('#menu [data-act=google]');
+    await A.page.waitForSelector('#menu .notice.warn', { timeout: 8000 });
+    assert((await A.page.textContent('#menu')).includes("isn't the admin"), 'no error message');
+    await shot(A, '3a-not-admin');
+    const now = await A.page.evaluate(() => ({ uid: firebase.auth().currentUser.uid, anon: firebase.auth().currentUser.isAnonymous }));
+    assert(now.uid === A.uid && now.anon, 'session changed: ' + JSON.stringify(now));
+    assert(await A.page.$('.reg-card') && !(await A.page.$('#admin .admin')), 'view changed');
+    let left = true; try { await admin.auth().getUserByEmail('mallory@example.com'); } catch (e) { left = false; }
+    assert(!left, 'the Google account created by the attempt was left behind');
+    await A.page.keyboard.press('Escape');
+  });
+  await check('the admin signs in from the ☰ menu and gets the admin panel', async () => {
+    await googleAs(Adm, 'boss', 'admin@example.com');
+    await Adm.page.click('[data-act=menu]');
+    await Adm.page.click('#menu [data-act=google]');
     await Adm.page.waitForSelector('#admin .admin', { timeout: 8000 });
+    await Adm.page.waitForSelector('#menu', { state: 'hidden' });
+    assert(!(await Adm.page.evaluate(() => firebase.auth().currentUser.isAnonymous)), 'still anonymous');
     assert(await Adm.page.isVisible('#admin-link'), 'header Admin shortcut missing');
     await Adm.page.click('[data-act=menu]');
     await Adm.page.waitForSelector('#menu [data-act=goto-admin]', { state: 'visible' });
