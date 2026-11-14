@@ -40,6 +40,10 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
     return res.end(fs.readFileSync(path.join(ROOT, 'index.html')));
   }
+  // The home-screen app's manifest and icons.
+  const STATIC = { '/manifest.webmanifest': 'application/manifest+json', '/icons/icon-180.png': 'image/png', '/icons/icon-192.png': 'image/png', '/icons/icon-512.png': 'image/png' };
+  const file = req.url.split('?')[0];
+  if (STATIC[file]) { res.writeHead(200, { 'content-type': STATIC[file] }); return res.end(fs.readFileSync(path.join(ROOT, file))); }
   res.writeHead(404); res.end();
 });
 
@@ -67,10 +71,11 @@ async function openUser(label, opts = {}) {
   // A fake clock applies to the whole browser context, so a clock-shifted copy of a user gets its own
   // context with the same sign-in (cloned storage, including Firebase's IndexedDB).
   const storageState = opts.cloneOf ? await opts.cloneOf.storageState({ indexedDB: true }) : undefined;
-  const ctx = await browser.newContext({ locale: opts.locale || 'en-US', timezoneId: 'Asia/Jerusalem', viewport: { width: 420, height: 900 }, storageState });
+  const ctx = await browser.newContext({ locale: opts.locale || 'en-US', timezoneId: 'Asia/Jerusalem', viewport: { width: 420, height: 900 }, storageState, userAgent: opts.userAgent });
   const page = await ctx.newPage();
   if (opts.fakeNow) await page.clock.setFixedTime(new Date(opts.fakeNow));
   // Email reminders are switched off in the live app; most users here turn them on to test them.
+  if (opts.standalone) await page.addInitScript(() => { Object.defineProperty(navigator, 'standalone', { get: () => true }); });
   if (opts.emailReminders !== false) await page.addInitScript(() => { window.LQ_EMAIL_REMINDERS = true; });
   page.on('pageerror', e => pageErrors.push(`${label}: ${e.message}`));
   await page.route(/gstatic\.com\/firebasejs\/[^/]+\/([\w-]+\.js)/, route => {
@@ -421,6 +426,21 @@ async function main() {
     await Adm.page.click('[data-act=machine]');
     await eventually(async () => !(await A.page.textContent('#notice')).includes('out of order'), 'notice did not clear');
   });
+  await check('admin publishes an announcement: everyone sees it live, then it is removed', async () => {
+    await Adm.page.fill('#adm-announce', 'Technician coming Tuesday morning.\nPlease empty the filter.');
+    assert(/published/.test(await toastAfter(Adm.page, () => Adm.page.click('[data-act=ann-save]'))), 'no published toast');
+    await eventually(async () => (await A.page.textContent('#notice')).includes('Technician coming Tuesday morning.'), 'Dana never saw the announcement');
+    assert((await A.page.textContent('#notice')).includes('From the building admin'), 'no "from the admin" line');
+    assert((await getDoc('config/notice')).text.includes('\n'), 'line break lost');
+    assert((await raw(A, `await db.doc('config/notice').set({text:'hacked', updatedAt:1})`)) === 'permission-denied', 'a normal user could post an announcement');
+    assert((await raw(A, `await db.doc('config/notice').delete()`)) === 'permission-denied', 'a normal user could delete the announcement');
+    await shot(A, '4b-announcement');
+    await Adm.page.waitForSelector('[data-act=ann-clear]');
+    assert(/removed/.test(await toastAfter(Adm.page, () => Adm.page.click('[data-act=ann-clear]'))), 'no removed toast');
+    await eventually(async () => !(await A.page.textContent('#notice')).includes('Technician'), 'announcement did not disappear');
+    assert((await Adm.page.inputValue('#adm-announce')) === '', 'editor not cleared');
+    assert(!(await getDoc('config/notice')), 'notice doc still there');
+  });
   await check("admin cancels Dana's turn the day after tomorrow", async () => {
     await showDay(Adm, w9);
     await Adm.page.click(`[data-act=admin-cancel][data-id="${w9}"]`);
@@ -617,6 +637,33 @@ async function main() {
     await register(H, 'Off', '050-444-4444', 'off@example.com');
     assert(!(await H.page.$('[data-act=remind]')), 'reminder button shown');
     assert(!(await getDoc('prefs/' + H.uid)), 'prefs written');
+  });
+
+  await check('the page links a home-screen manifest whose icons load', async () => {
+    const r = await A.page.evaluate(async () => {
+      const href = document.querySelector('link[rel=manifest]').href, m = await (await fetch(href)).json();
+      const icons = await Promise.all(m.icons.map(async i => (await fetch(new URL(i.src, href))).status));
+      const apple = (await fetch(document.querySelector('link[rel=apple-touch-icon]').href)).status;
+      return { m, icons, apple };
+    });
+    assert(r.m.display === 'standalone' && r.m.start_url === './' && r.m.icons.some(i => i.sizes === '512x512'), 'manifest incomplete');
+    assert(r.icons.every(s => s === 200) && r.apple === 200, 'an icon did not load: ' + r.icons.concat(r.apple));
+  });
+  await check('☰ "Add to home screen" shows the steps (iPhone: Share menu, plus the separate sign-up note)', async () => {
+    await A.page.click('[data-act=menu]');
+    await A.page.click('#menu [data-act=install]');
+    assert((await A.page.textContent('#menu')).includes('Install app'), 'no browser steps');
+    await A.page.keyboard.press('Escape');
+    const I = await openUser('iPhone', { emailReminders: false, userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1' });
+    await register(I, 'Iris', '050-555-5555', 'iris@example.com');
+    await I.page.click('[data-act=menu]');
+    await I.page.click('#menu [data-act=install]');
+    const t = await I.page.textContent('#menu');
+    assert(t.includes('Add to Home Screen') && t.includes('its own sign-up'), 'iPhone steps missing: ' + t.slice(0, 200));
+    await shot(I, '8-install-iphone');
+    const S2 = await openUser('Standalone', { emailReminders: false, standalone: true });
+    await S2.page.click('[data-act=menu]');
+    assert(!(await S2.page.$('#menu [data-act=install]')), 'install offered inside the home-screen app');
   });
 
   await check('no JavaScript errors in any browser', async () => { assert(pageErrors.length === 0, pageErrors.join(' | ')); });

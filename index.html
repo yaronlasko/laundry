@@ -4,6 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#16708a">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="תור כביסה">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>תור כביסה · Laundry Queue</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -57,7 +64,7 @@ button.danger.solid{background:var(--warn);color:var(--surface)}
 button:disabled,select:disabled{opacity:.5;cursor:not-allowed}
 .lang{font-family:var(--font-display);font-weight:500}
 
-input,select{font:inherit;color:var(--ink);background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:9px 12px;min-width:0}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:9px 12px;min-width:0}
 label{font-weight:600;font-size:.9rem}
 .field{display:flex;flex-direction:column;gap:4px;min-width:0}
 
@@ -65,6 +72,11 @@ label{font-weight:600;font-size:.9rem}
 .notice.warn{background:var(--warn-soft);color:var(--ink);border:1px solid var(--warn)}
 #notice{display:flex;flex-direction:column;gap:10px}
 #notice:empty{display:none}
+.notice.announce{background:var(--surface);border:1px solid var(--line);border-inline-start:4px solid var(--accent);display:flex;flex-direction:column;gap:4px}
+.announce-text{white-space:pre-line;font-weight:600;overflow-wrap:anywhere}
+.ann-edit{display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line);padding-top:12px}
+.ann-edit textarea{width:100%;resize:vertical;min-height:76px}
+.drawer hr{border:0;border-top:1px solid var(--line);margin:0;width:100%}
 
 /* status dial */
 .status{display:grid;grid-template-columns:132px 1fr;gap:18px;align-items:center}
@@ -321,7 +333,12 @@ en:{
   calDetails:"Your laundry turn: {a}–{b}. Take your clothes out by {b} so the next person can start.",
   accGoogle:"Signed in as {email}.", google:"Sign in with Google", signOut:"Sign out",
   errNotAdmin:"This Google account isn't the admin. Nothing was changed.", errPopup:"The sign-in window was blocked. Allow pop-ups for this site and try again.",
-  menu:"Menu", adminSignIn:"Admin sign-in", adminSignInHint:"For the building admin only.", adminPanel:"Admin panel",
+  menu:"Menu", install:"Add to home screen",
+  installIOS:"In Safari, open the Share menu (on newer iPhones it's under the ••• button), then choose “Add to Home Screen”.",
+  installOther:"Open your browser's menu and choose “Install app” or “Add to Home screen”.",
+  installIOSNote:"The home-screen app has its own sign-up, separate from Safari. After adding it, open it and sign up again with the same name and phone. Turns you already booked stay booked; to cancel one of those, use Safari.",
+  annLabel:"Announcement for everyone", annHint:"Shown at the top of the page for all neighbours until you remove it.", annPlaceholder:"For example: a technician is coming Tuesday morning",
+  annPublish:"Publish", annUpdate:"Update", annRemove:"Remove", annPublished:"Announcement published", annRemoved:"Announcement removed", annFrom:"From the building admin, {d}", adminSignIn:"Admin sign-in", adminSignInHint:"For the building admin only.", adminPanel:"Admin panel",
   remindLabel:"Email me reminders: about 10 minutes before my turn, and when it's time to take my clothes out.",
   remindOn:"Email reminders are on.", remindOff:"Email reminders are off.", remindTurnOn:"Turn on", remindTurnOff:"Turn off",
   remindOnMsg:"Email reminders on", remindOffMsg:"Email reminders off",
@@ -379,7 +396,12 @@ he:{
   calDetails:"תור הכביסה שלך: {a}–{b}. יש להוציא את הבגדים עד {b} כדי שהבא בתור יוכל להתחיל.",
   accGoogle:"מחובר/ת בתור {email}.", google:"כניסה עם גוגל", signOut:"התנתקות",
   errNotAdmin:"חשבון הגוגל הזה אינו חשבון המנהל. לא בוצע שום שינוי.", errPopup:"חלון ההתחברות נחסם. יש לאפשר חלונות קופצים לאתר ולנסות שוב.",
-  menu:"תפריט", adminSignIn:"כניסת מנהל", adminSignInHint:"למנהל/ת הבניין בלבד.", adminPanel:"ניהול הלוח",
+  menu:"תפריט", install:"הוספה למסך הבית",
+  installIOS:"בספארי, יש לפתוח את תפריט השיתוף (באייפונים חדשים הוא נמצא תחת הכפתור •••) ולבחור ״הוספה למסך הבית״.",
+  installOther:"יש לפתוח את תפריט הדפדפן ולבחור ״התקנת אפליקציה״ או ״הוספה למסך הבית״.",
+  installIOSNote:"לאפליקציה במסך הבית יש הרשמה משלה, נפרדת מספארי. אחרי ההוספה יש לפתוח אותה ולהירשם שוב עם אותו שם וטלפון. תורים שכבר הוזמנו נשארים; כדי לבטל אחד מהם יש להשתמש בספארי.",
+  annLabel:"הודעה לכל הדיירים", annHint:"מוצגת בראש העמוד לכל השכנים עד שמסירים אותה.", annPlaceholder:"לדוגמה: טכנאי יגיע ביום שלישי בבוקר",
+  annPublish:"פרסום", annUpdate:"עדכון", annRemove:"הסרה", annPublished:"ההודעה פורסמה", annRemoved:"ההודעה הוסרה", annFrom:"מנהל/ת הבניין, {d}", adminSignIn:"כניסת מנהל", adminSignInHint:"למנהל/ת הבניין בלבד.", adminPanel:"ניהול הלוח",
   remindLabel:"לשלוח לי תזכורות במייל: כ-10 דקות לפני התור, וכשמגיע הזמן להוציא את הבגדים.",
   remindOn:"תזכורות במייל פעילות.", remindOff:"תזכורות במייל כבויות.", remindTurnOn:"הפעלה", remindTurnOff:"כיבוי",
   remindOnMsg:"תזכורות במייל הופעלו", remindOffMsg:"תזכורות במייל כובו",
@@ -392,7 +414,7 @@ function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;'
 const pad = n => String(n).padStart(2,'0');
 const $ = id => document.getElementById(id);
 
-const S = { uid:null, isAnon:true, email:'', isAdmin:false, members:{}, bookings:[], swapsFrom:[], swapsTo:[], machine:{broken:false}, prefs:null, prefsLoaded:false, justBooked:null,
+const S = { announce:null, installHelp:false, uid:null, isAnon:true, email:'', isAdmin:false, members:{}, bookings:[], swapsFrom:[], swapsTo:[], machine:{broken:false}, prefs:null, prefsLoaded:false, justBooked:null,
   loadedB:false, ready:false, unreachable:false, setup:false, authFail:false, day:null, swapTarget:null, confirm:null, editing:false, busy:false,
   menuError:'', adminTab:'schedule', adminFilter:'', adminEdit:null, admForm:null, memberEdit:null, history:null, historyLoading:false };
 let db=null, auth=null, unsubs=[];
@@ -420,7 +442,7 @@ function freeStarts(k, exceptId){ const ds=dayStart(k), de=dayEnd(k), now=Date.n
 
 function setHTML(el, html){
   if(el._last===html) return;
-  const saved={}; el.querySelectorAll('input,select').forEach(i=>{ if(i.id) saved[i.id]= i.type==='checkbox' ? {checked:i.checked} : i.value; });
+  const saved={}; el.querySelectorAll('input,select,textarea').forEach(i=>{ if(i.id) saved[i.id]= i.type==='checkbox' ? {checked:i.checked} : i.value; });
   const f=document.activeElement && el.contains(document.activeElement) ? document.activeElement.id : null;
   el.innerHTML=html; el._last=html;
   for(const id in saved){ const n=el.querySelector('#'+CSS.escape(id)); if(!n) continue; if(typeof saved[id]==='object'){ if(n.type==='checkbox') n.checked=saved[id].checked; } else n.value=saved[id]; }
@@ -489,6 +511,11 @@ function renderNotice(){
   else if(S.authFail) h=`<div class="notice warn">${t('authFail')}</div>`;
   if(S.unreachable) h+=`<div class="notice warn">${t('unreachable')}</div>`;
   if(S.machine && S.machine.broken) h+=`<div class="notice warn"><strong>${t('outOfOrder')}</strong></div>`;
+  const a=S.announce;
+  if(a && typeof a.text==='string' && a.text.trim()){
+    const d=typeof a.updatedAt==='number' ? new Date(a.updatedAt).toLocaleDateString(locale(),{day:'numeric',month:'numeric'}) : '';
+    h+=`<div class="notice announce" role="status"><p class="announce-text" dir="auto">${esc(a.text)}</p><p class="small muted">${t('annFrom',{d:`<span dir="ltr">${esc(d)}</span>`})}</p></div>`;
+  }
   setHTML($('notice'),h);
 }
 
@@ -687,6 +714,10 @@ function renderAdmin(){
     <div class="turn-head"><h2>${t('adminTitle')}</h2><span class="pill">${t('adminBadge')}</span></div>
     <div class="reg-summary"><p>${S.machine.broken?t('machineBroken'):t('machineOk')}</p>
       <button type="button" class="${S.machine.broken?'primary':'danger'}" data-act="machine">${S.machine.broken?t('markOk'):t('markBroken')}</button></div>
+    <div class="ann-edit"><label for="adm-announce">${t('annLabel')}</label>
+      <textarea id="adm-announce" rows="3" maxlength="300" dir="auto" placeholder="${t('annPlaceholder')}">${esc((S.announce&&S.announce.text)||'')}</textarea>
+      <p class="small muted">${t('annHint')}</p>
+      <div class="acts-wrap"><button type="button" class="primary" data-act="ann-save">${S.announce?t('annUpdate'):t('annPublish')}</button>${S.announce?`<button type="button" data-act="ann-clear">${t('annRemove')}</button>`:''}</div></div>
     <div class="tabs" role="group">${tabs.map(([k,l])=>`<button type="button" data-act="adm-tab" data-tab="${k}" aria-pressed="${S.adminTab===k}">${esc(l)}</button>`).join('')}</div>`;
   h += S.adminTab==='members' ? admMembersHTML(ids) : S.adminTab==='history' ? admHistoryHTML() : admScheduleHTML(ids);
   setHTML(el, h+'</div>');
@@ -780,6 +811,14 @@ function renderMenu(){
   const el=$('menu');
   let h=`<div class="drawer-head"><h2 id="menu-title">${t('menu')}</h2><button type="button" class="icon-btn" data-act="menu-close" aria-label="${t('close')}">
     <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg></button></div>`;
+  if(!isStandalone()){
+    h+=`<div class="acts-wrap"><button type="button" data-act="install" aria-expanded="${S.installHelp}">${t('install')}</button></div>`;
+    if(S.installHelp){
+      h+=`<p class="small install-help">${isIOS()?t('installIOS'):t('installOther')}</p>`;
+      if(isIOS() && S.uid && S.members[S.uid]) h+=`<p class="small muted">${t('installIOSNote')}</p>`;
+    }
+    h+='<hr>';
+  }
   if(S.uid && S.isAnon){
     h+=`<div class="acts-wrap"><button type="button" data-act="google">${t('adminSignIn')}</button></div><p class="small muted">${t('adminSignInHint')}</p>`;
     if(S.menuError) h+=`<p class="notice warn small" role="alert">${esc(S.menuError)}</p>`;
@@ -789,10 +828,17 @@ function renderMenu(){
   }
   setHTML(el,h);
 }
+// Home-screen app. iPhones have no install prompt, so the menu explains the Share-menu steps.
+// On iPhone the home-screen app keeps its own storage, so it starts with a fresh sign-up.
+let installEvt=null;
+window.addEventListener('beforeinstallprompt', e=>{ installEvt=e; });
+window.addEventListener('appinstalled', ()=>{ installEvt=null; });
+function isStandalone(){ return (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone===true; }
+function isIOS(){ return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1); }
 function setMenu(open){
   const m=$('menu'), sc=$('scrim'), b=$('menu-btn');
   m.hidden=!open; sc.hidden=!open; b.setAttribute('aria-expanded', String(open));
-  if(open){ S.menuError=''; renderMenu(); const f=m.querySelector('[data-act]:not([data-act=menu-close])')||m.querySelector('button'); if(f) f.focus(); }
+  if(open){ S.menuError=''; S.installHelp=false; renderMenu(); const f=m.querySelector('[data-act]:not([data-act=menu-close])')||m.querySelector('button'); if(f) f.focus(); }
   else b.focus({preventScroll:true});
 }
 function applyLang(){
@@ -817,6 +863,7 @@ function subscribe(){
   unsubs.push(db.collection('swaps').where('fromUid','==',S.uid).onSnapshot(s=>{ S.swapsFrom=docs(s); renderAll(); }, e=>console.warn('swaps',e)));
   unsubs.push(db.collection('swaps').where('toUid','==',S.uid).onSnapshot(s=>{ S.swapsTo=docs(s); renderAll(); }, e=>console.warn('swaps',e)));
   if(EMAIL_REMINDERS) unsubs.push(db.doc('prefs/'+S.uid).onSnapshot(d=>{ S.prefs=d.exists?d.data():{}; S.prefsLoaded=true; renderAll(); }, e=>{ console.warn('prefs',e); S.prefsLoaded=false; renderAll(); }));
+  unsubs.push(db.doc('config/notice').onSnapshot(d=>{ S.announce=d.exists?d.data():null; renderAll(); }, e=>console.warn('notice',e)));
   unsubs.push(db.doc('config/machine').onSnapshot(d=>{ S.machine=d.exists?d.data():{broken:false}; renderAll(); }, e=>console.warn('machine',e)));
 }
 async function handleUser(u){
@@ -1022,6 +1069,19 @@ document.addEventListener('click', async ev=>{
       case 'swap-accept': { const sw=allSwaps().find(s=>s.id===id); if(!sw) break; btn.disabled=true; await acceptSwap(sw); toast(t('swapped')); break; }
       case 'swap-decline': await db.doc('swaps/'+id).update({status:'declined', answeredAt:Date.now()}); break;
       case 'swap-dismiss': await db.doc('swaps/'+id).delete(); break;
+      case 'install':
+        if(installEvt){ const ev2=installEvt; installEvt=null; ev2.prompt(); try{ await ev2.userChoice; }catch(e){} }
+        else { S.installHelp=!S.installHelp; renderMenu(); }
+        break;
+      case 'ann-save': case 'ann-clear': {
+        const ta=$('adm-announce'), v=act==='ann-save' && ta ? ta.value.trim().slice(0,300) : '';
+        try{
+          if(v) await db.doc('config/notice').set({text:v, updatedAt:Date.now()});
+          else await db.doc('config/notice').delete();
+        }catch(e){ if(e && e.code==='permission-denied') throw {code:'adminrules'}; throw e; }
+        if(!v){ const ta2=$('adm-announce'); if(ta2) ta2.value=''; } // the panel may have redrawn already
+        toast(t(v?'annPublished':'annRemoved')); break;
+      }
       case 'machine': await db.doc('config/machine').set({broken:!S.machine.broken, updatedAt:Date.now()}); break;
       case 'rm-yes': {
         const uid=btn.dataset.uid; S.confirm=null; const now=Date.now();

@@ -11,6 +11,7 @@ Laundry Queue: a booking app for one shared washing machine in a building. Hebre
 | Path | What it is |
 |---|---|
 | `index.html` | The entire app: HTML, CSS and JS in one file. No build step, no npm. Firebase compat SDK 10.12.2 is loaded from gstatic. The Firebase web config is inline (that's public by design). |
+| `manifest.webmanifest`, `icons/` | Home-screen app: manifest (Hebrew name, standalone, `start_url` `./`) and the washer-door icon (`icons/icon.svg` is the source; the PNGs are rendered from it at 180, 192 and 512 px). There is deliberately **no service worker**: the app is one file that changes often, and a cache would serve stale versions. |
 | `functions/` | **Not deployed** (the owner doesn't want to pay for Blaze). Firebase Cloud Functions (Node 20, v2): `sendReminders` (`index.js`) runs every 5 min and sends reminder emails via Gmail SMTP. The run itself is `processReminders` in `send.js` (takes db, clock and mail sender, so tests can drive it). Timing and email text are pure logic in `reminders.js`, unit tests in `test.js`. |
 | `tests/multiuser/` | End-to-end test: the real app in several browsers at once against the Firebase emulators. `firestore.test.rules` is the production security rules, with the admin email swapped for `admin@example.com`. |
 | `firebase.json`, `.firebaserc` | Functions deploy config. Project id: `laundry-schedule-fa89a`. |
@@ -32,6 +33,7 @@ The page is served statically, presumably via GitHub Pages at `https://yaronlask
 - `adminSaveBooking` moves or reassigns a turn in one batch, writing each doc at most once (a `Map` of path → data or `null` for delete). Moving a turn = delete the old turn + create the new one; reassigning at the same time = set the same booking id.
 - The editor's time `<select>` id includes the day (`adm-time-<day>`), so `setHTML` doesn't carry a stale time across a day change.
 - When a write is refused, admin actions show `errAdminRules` ("publish the latest security rules").
+- **Announcement:** the admin panel has a text box (`#adm-announce`, max 300 chars) that writes `config/notice` `{text, updatedAt}`; `renderNotice` shows it to everyone at the top, with line breaks and `dir="auto"`. Publishing an empty text removes it. No rule change was needed (`config/{doc}` is admin-write, public-read).
 - Not built yet: blocking time slots (quiet hours or maintenance). The owner was told it can be added.
 
 ## Booking rules (constants at the top of the app script)
@@ -48,6 +50,7 @@ The page is served statically, presumably via GitHub Pages at `https://yaronlask
 | `ticks/{ms}` | `{booking}`. One per 15-minute block a booking covers (3 per turn). Exists so the rules can block overlapping bookings. |
 | `daily/{uid}_{day}` | `{uid, day, booking}`. Exists so the rules can enforce one turn per day. |
 | `swaps/{id}` | `{fromUid, toUid, fromBooking, toBooking, status: pending/accepted/declined, createdAt, answeredAt?}` |
+| `config/notice` | `{text, updatedAt}`. The admin's announcement; missing when there is none. |
 | `config/machine` | `{broken, updatedAt}`. When `broken` is true, booking is paused. |
 | `adminCheck/me` | Admin probe: the client tries to read it, and success means admin. The client only checks this for Google-signed-in users. |
 | `prefs/{uid}` | `{email: bool, lang, updatedAt}`. Reminder opt-in, private to the user. |
@@ -87,6 +90,7 @@ The real protection is the Firestore security rules, published by hand in the Fi
 - Functions: need the Blaze plan, plus secrets `SMTP_USER` and `SMTP_PASS` (a Gmail address and app password). Optional params are `APP_URL` and `TIME_ZONE`. Deploy with `npx firebase-tools deploy --only functions`. The owner runs this, for example from Google Cloud Shell; see README.
 
 ## Known issues
+- On iPhone, a home-screen app has its own storage, separate from Safari, so the anonymous sign-up doesn't carry over: people sign up again there, and turns booked in Safari stay on the old sign-up (the ☰ menu's "Add to home screen" steps say so). The admin can reassign those turns and remove the old member. Moving a sign-up across would need a transfer feature plus a rules change. Google sign-in from inside the iPhone home-screen app is untested; the admin can always use Safari.
 - The setup notice text mentions `firebase-config.js`, which doesn't exist. The config is inline.
 - `members` is readable by everyone, including emails.
 - If the admin signs in with Google on a phone where their Google account already exists, the anonymous sign-up on that phone is left orphaned (only the admin can sign in with Google now).
