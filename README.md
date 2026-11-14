@@ -8,6 +8,16 @@ using Firebase (sign-in and the Firestore database).
 Neighbours just open the page; their sign-up is kept on their phone (anonymous Firebase sign-in).
 The admin opens the ☰ menu → "Admin sign-in" and signs in with Google to get the admin panel.
 
+## Home-screen app
+
+The ☰ menu has "Add to home screen" with the steps (on Android it opens the install prompt). On iPhone the home-screen
+app keeps its own sign-up, separate from Safari, so people sign up once more there.
+
+## Announcements
+
+In the admin panel, write a message under "Announcement for everyone" and tap Publish. It shows at the top of the
+page for everyone until you tap Remove.
+
 ## Reminders
 
 **Calendar reminders (in use, free):** right after booking, a card offers to add the turn to the phone's calendar.
